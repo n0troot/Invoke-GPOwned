@@ -9,8 +9,11 @@ Edit the ScheduledTasks.xml for the cmd arguments to match the user you want to 
 
 # Usage
 Check the domain GUID, this could typically be done through BloodHound.
+
 Under the \\domain\SYSVOL\domain\<GUID> folder, create a Preferences folder if needed, and inside it a "ScheduledTasks" folder.
+
 Put the ScheduledTasks.xml file inside the ScheduledTasks folder.
+
 Run the script, supply it with the GPO's GUID.
 
 # Flow
