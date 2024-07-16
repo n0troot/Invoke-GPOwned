@@ -35,11 +35,11 @@ $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$env:USERNAME"} |
 $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
 $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
             Set-Content -Encoding $encoding $xmlfile -Force
-if(cat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"){
+if(cat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -ErrorAction SilentlyContinue){
     Copy-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" "\\noteasy.local\SYSVOL\noteasy.local\Policies\{095EB75F-4CE4-4E9E-AAB9-2BE3B23549BD}\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old"
 } else {
     New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force
-    Copy-Item .\ScheduledTasks.xml "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+    Copy-Item .\ScheduledTasks.xml "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force
 }
 $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
 $GPO = "CN=$guid,CN=Policies,CN=System,$domaindn"
