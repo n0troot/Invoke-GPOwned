@@ -6,20 +6,20 @@ Write permissions on a GPO (GenericWrite/GenericAll etc.)
 
 The GPO must be Linked to the domain/domain controllers
 
-Edit the ScheduledTasks.xml for the cmd arguments to match the user you want to elevate + Filter the right domain controller you want to target
-
 
 # Usage
 Check the domain GUID, this could typically be done through BloodHound.
 
-Under the \\domain\SYSVOL\domain\<GUID> folder, create a Preferences folder if needed, and inside it a "ScheduledTasks" folder.
-
-Put the ScheduledTasks.xml file inside the ScheduledTasks folder.
-
-Run the script, supply it with the GPO's GUID.
+Run the script from the same folder that the ScheduledTasks.xml exists in, supply it with the GPO's GUID.
 
 # Flow
-The script loads the powershell ActiveDirectory module from github to memory.
+The Powershell ActiveDirectory module is loaded to memory.
+
+The path \\<domain>\sysvol\<domain>\<gpo-guid>\machine\preferences\scheduledtasks is created.
+
+ScheduledTasks.xml is copied to the path.
+
+ScheduledTasks.xml is modified automatically.
 
 gPCMachineExtensionNames value is checked and put into a variable.
 
