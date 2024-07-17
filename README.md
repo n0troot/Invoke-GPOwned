@@ -31,4 +31,4 @@ gPCMachineExtensionNames for scheduled tasks are added.
 
 After the scheduled task is created and the user is added to the "domain admins" group, the gPCMachineExtensionNames are reverted back to what they were.
 
-The scheduled task is removed remotely.
+The scheduled task is removed remotely. (Half broken)
