@@ -9,9 +9,9 @@ Some group policies don't affect domain controllers, in that case local administ
 # How to Use
 
 1. Download the ScheduledTasks.xml file
-2. Download/IEX GPOAttack.ps1
+2. Download/IEX GPOwned.ps1
 3. If downloaded - import module
-4. Run Invoke-GPOAttack using the following flags:
+4. Run Invoke-GPOwned using the following flags:
 
      -GPOGUID: Group Policy GUID
 
