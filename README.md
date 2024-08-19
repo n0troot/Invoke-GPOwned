@@ -2,7 +2,8 @@
 
 The only thing that the user needs is write privileges over the specific group policy as such:
 
-![image](https://github.com/user-attachments/assets/bd348768-a26c-40be-9c9d-17b8d9547327)
+![image](https://github.com/user-attachments/assets/2d79536e-45c5-4de6-91ed-b3046e677eeb)
+
 
 Some group policies don't affect domain controllers, in that case local administrator escalation on affected computers are viable.
 
