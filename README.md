@@ -29,3 +29,13 @@ Some group policies don't affect domain controllers, in that case local administ
    |-SecondTaskXMLPath|-stx|Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers|
 
  6. If you get an error at the end of execution that removing the scheduled task failed, don't forget to remove it manually
+
+
+
+# TO ADD
+
+1. Second XML handling #> -User param to change in the XML, custom cmd/ps to go to that xml, verify deletion
+2. Better error handling #> GPT.INI could be loaded by a process, JUST CHECK THAT EVERY CASE IS HANDLED
+3. GPO name to GUID, might be a terrible idea... but maybe...
+4. A better loading screen hopefully
+5. Better output... probably colored, probably more informative
