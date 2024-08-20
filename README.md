@@ -27,14 +27,5 @@ Some group policies don't affect domain controllers, in that case local administ
    |-User|-u|Target user to elevate, **mandatory** for DA/Local technique|
    |-Domain|-d|Target domain, current domain is used by default|
    |-SecondTaskXMLPath|-stx|Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers|
-    
 
-
-
-
-    -Domain/-d: Target domain, current domain is used by default
-
-    -LoadDLL/-dll: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
-
-
- 5. If you get an error at the end of execution that removing the scheduled task failed, don't forget to remove it manually
+ 6. If you get an error at the end of execution that removing the scheduled task failed, don't forget to remove it manually
