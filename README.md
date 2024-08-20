@@ -14,20 +14,27 @@ Some group policies don't affect domain controllers, in that case local administ
 3. If downloaded - import module
 4. Run Invoke-GPOwned using the following flags:
 
-     -GPOGUID: Group Policy GUID
+   |Flag|Alias|Description|
+   |-|-|-|
+   |-GPOGUID|-guid|Group Policy GUID|
+   |-Computer|-c|Target Computer|
+   |-ScheduledTasksXMLPath|-xml|Full path to the ScheduledTasks xml file|
+   |-LoadDLL|-dll|Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory|
+   |-DA|*|Adds the user to the domain admins group|
+   |-Local|*|Adds a chosen user to the local administrators group on the defined computer|
+   |-CMD|*|Execute a custom cmd command|
+   |-PowerShell|-ps|Execute a custom powershell command|
+   |-User|-u|Target user to elevate, **mandatory** for DA/Local technique|
+   |-Domain|-d|Target domain, current domain is used by default|
+   |-SecondTaskXMLPath|-stx|Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers|
+    
 
-     -ScheduledTasksXMLPath: Full path to the ScheduledTasks xml file
 
-     -Computer: Target computer
- 
-     -Local - Adds a chosen user to the local administrators goup on the defined computer
- 
-     -DA - Adds the user to the domain admins group
- 
-     -User: Target user to elevate, mandatory for Local technique
- 
-     -Domain: Target domain
 
-     *NOTE that aside from the "-Domain" flag the rest are mandatory for execution.
+
+    -Domain/-d: Target domain, current domain is used by default
+
+    -LoadDLL/-dll: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
+
 
  5. If you get an error at the end of execution that removing the scheduled task failed, don't forget to remove it manually
