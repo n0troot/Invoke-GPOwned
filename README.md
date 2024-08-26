@@ -5,7 +5,14 @@ The only thing that the user needs is write privileges over the specific group p
 ![image](https://github.com/user-attachments/assets/2d79536e-45c5-4de6-91ed-b3046e677eeb)
 
 
-Some group policies don't affect domain controllers, in that case local administrator escalation on affected computers are viable.
+*****Escalating to domain admin:*****
+
+* Group policy linked to the domain controllers &rarr; **DA/Local Flag**
+* Group policy linked to a workstation which has a session of a DA &rarr; **Second XML technique**
+
+*****Escalating to local admin:*****
+
+* Group policy linked to a workstation which has a session of a local admin &rarr; **Local Flag**
 
 # How to Use
 
@@ -26,9 +33,14 @@ Some group policies don't affect domain controllers, in that case local administ
    |-PowerShell|-ps|Execute a custom powershell command|
    |-User|-u|Target user to elevate, **mandatory** for DA/Local technique|
    |-Domain|-d|Target domain, current domain is used by default|
-   |-SecondTaskXMLPath|-stx|Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers|
+   |-SecondTaskXMLPath|-stx|Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers, **No need for -CMD or -PowerShell flags!**|
+   |SecondXMLCMD|*|Execute a CMD command in the second XML|
+   |SecondPowerShell|*|Execute a PowerShell command in the second XML|
+   |Log|*|Log the entire output of the tool to a text file|
 
  6. If you get an error at the end of execution that removing the scheduled task failed, don't forget to remove it manually
+
+ 7. When using the second XML technique, note that it may take up to 24 hours for the scheduled task to remove itself, best practice would be to unregister the scheduled task manually to assure proper clean-up.  
 
 
 
