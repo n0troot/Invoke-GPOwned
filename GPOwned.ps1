@@ -436,7 +436,7 @@ if(!($LoadDLL)){
             Start-Sleep -Seconds 10
             if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -ne $null) {
                 break
-            }
+            }}
         $green+" User added to the local admins group!"
     }elseif($CMD -or $PowerShell){
         for ($x = 1; $x -le 300; $x+=10){
@@ -444,7 +444,7 @@ if(!($LoadDLL)){
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
         }
-    }elseif($SecondTaskXMLPath -and $User){
+    }elseif($SecondTaskXMLPath){
         for ($x = 1; $x -le 86400; $x+=60){
             $PercentCompleted = ($x/86400*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
