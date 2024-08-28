@@ -441,17 +441,22 @@ if(!($LoadDLL)){
     }elseif($CMD -or $PowerShell){
         for ($x = 1; $x -le 300; $x+=10){
             $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF! (Press `"End`" to quit)" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
+            if((($Host.UI.RawUI.ReadKey("IncludeKeyDown") | select VirtualKeyCode -ExpandProperty VirtualKeyCode) -eq "35")){
+                break
+            }
         }
     }elseif($SecondTaskXMLPath){
         for ($x = 1; $x -le 86400; $x+=60){
             $PercentCompleted = ($x/86400*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF! (Press `"End`" to quit)" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 60
             if ((Get-ADGroupMember "Domain Admins" | findstr $User) -ne $null) {
                 break
-            }                
+            }elseif((($Host.UI.RawUI.ReadKey("IncludeKeyDown") | select VirtualKeyCode -ExpandProperty VirtualKeyCode) -eq "35")){
+                break
+            }             
         }
     }
     $gray+" Reverting extensions back to what they were"
