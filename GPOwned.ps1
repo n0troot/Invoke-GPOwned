@@ -77,7 +77,7 @@ Invoke-GPOwned Help:
 
 Examples: 
 - GPO Linked to DC:
-Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User UserToElevate -Computer dc01.noteasy.local
+Invoke-GPOwned -GPOName "Default Domain Policy" -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User UserToElevate -Computer dc01.noteasy.local
 
 - GPO Linked to a workstation:
 Invoke-GPOwned -GPOGUID {387547AA-B67F-4D7B-A524-AE01E56751DD} -LoadDLL .\Microsoft.ActiveDirectory.Management.dll -ScheduledTasksXMLPath ".\ScheduledTasks.xml" -User UserToElevate -Computer pc01.noteasy.local -Local
@@ -87,18 +87,22 @@ Invoke-GPOwned -GPOGUID "{D552AC5B-CE07-4859-9B8D-1B6A6BE1ACDA}" -LoadDLL .\Micr
 
 Parameters:
 -GPOGUID/-guid: Group Policy GUID
+-GPOName/-gpo: Name of the Group Policy Object
+-Interval/-int: Interval for GPO update
 -ScheduledTasksXMLPath/-xml: Full path to the ScheduledTasks xml file
--SecondTaskXMLPath/-stx: Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers, if used there's no need to supply -CMD or -PowerShell flags
+-User/-u: Target user to elevate, mandatory for Local technique
+-Author/-a: Author of the GPO changes
+-Domain/-d: Target domain, current domain is used by default
 -Computer/-c: Target computer
--Local: Adds a chosen user to the local administrators group on the defined computer
+-Help/-h: Display this help message
 -DA: Adds the user to the domain admins group
+-Local: Adds a chosen user to the local administrators group on the defined computer
+-LoadDLL/-dll: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
 -CMD: Execute a custom cmd command
 -PowerShell/-ps: Execute a custom powershell command
+-SecondTaskXMLPath/-stx: Using the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers, if used there's no need to supply -CMD or -PowerShell flags
 -SecondXMLCMD/-scmd: Execute a command with the second XML technique
--SecondPowerShell/-sps: Execute a command with the second XML technique
--User/-u: Target user to elevate, mandatory for Local technique
--Domain/-d: Target domain, current domain is used by default
--LoadDLL/-dll: Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory
+-SecondPowerShell/-sps: Execute a command with the second XML technique using PowerShell
 -Log: Log the entire output of the tool into a text file
 "@
         return
