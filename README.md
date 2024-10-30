@@ -50,8 +50,8 @@ The only thing that the user needs is write privileges over the specific group p
 
 # TO ADD
 
-1. Second XML handling #> -User param to change in the XML, custom cmd/ps to go to that xml, verify deletion
+1. ~~Second XML handling #> -User param to change in the XML, custom cmd/ps to go to that xml, verify deletion~~
 2. Better error handling #> GPT.INI could be loaded by a process, JUST CHECK THAT EVERY CASE IS HANDLED
-3. GPO name to GUID, might be a terrible idea... but maybe...
+3. ~~GPO name to GUID, might be a terrible idea... but maybe...~~
 4. A better loading screen hopefully
-5. Better output... probably colored, probably more informative
+5. ~~Better output... probably colored, probably more informative~~
