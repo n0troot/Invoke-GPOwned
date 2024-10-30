@@ -430,32 +430,47 @@ Parameters:
     }
     }
 
-    # Incrementing GPT.INI Version by 1
-    $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
-    $gray+" Incrementing GPT.INI Version by 1"
-    $gptIniFilePath = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\GPT.INI"
-    $encoding = 'ASCII'
-    $gptIniContent = Get-Content -Encoding $encoding -Path $gptIniFilePath
-
-    # Incrementing GPI.INI version by 1 to update the SYSVOL Machine policy
-    foreach ($s in $gptIniContent) {
-        if($s.StartsWith("Version")) {
-            $num = ($s -split "=")[1]
-            $ver = [Convert]::ToInt32($num)
-            $newVer = $ver + 1
-            (Get-Content $gptIniFilePath) | ForEach-Object {$_ -replace "$ver","$newver" } |
-                Set-Content -Encoding $encoding $gptIniFilePath -Force
+        # Incrementing GPT.INI Version by 1
+        $Ext = "[{00000000-0000-0000-0000-000000000000}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}][{AADCED64-746C-4633-A97C-D61349046527}{CAB54552-DEEA-4691-817E-ED4A4D1AFC72}]"
+        $gray+" Incrementing GPT.INI Version by 1"
+        
+        try {
+            # First try to update AD version to ensure we can make changes
+            $currentVersion = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber -ErrorAction Stop | 
+                Select-Object -ExpandProperty versionNumber)
+            $gray+" Current GPO AD versionNumber = $currentVersion"
+            $gray+" Incrementing version by 1"
+            $newVersionValue = $currentVersion+1
+            Set-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber -Value $newVersionValue -ErrorAction Stop
+            
+            # Verify AD version update succeeded
+            $updatedVersion = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber -ErrorAction Stop | 
+                Select-Object -ExpandProperty versionNumber)
+            if ($updatedVersion -ne $newVersionValue) {
+                throw "AD version update verification failed"
+            }
+            $gray+" GPO AD versionNumber = $updatedVersion"
+    
+            # Only after AD update succeeds, update GPT.INI
+            $gptIniFilePath = "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\GPT.INI"
+            $encoding = 'ASCII'
+            $gptIniContent = Get-Content -Encoding $encoding -Path $gptIniFilePath -ErrorAction Stop
+    
+            foreach ($s in $gptIniContent) {
+                if($s.StartsWith("Version")) {
+                    $num = ($s -split "=")[1]
+                    $ver = [Convert]::ToInt32($num)
+                    $newVer = $ver + 1
+                    (Get-Content $gptIniFilePath) | ForEach-Object {$_ -replace "$ver","$newver" } |
+                        Set-Content -Encoding $encoding $gptIniFilePath -Force -ErrorAction Stop
+                    break
+                }
+            }
+    
+        } catch {
+            $red+" Failed to update GPO versions: $($_.Exception.Message)"
+            return
         }
-    }
-
-    # Incrementing the AD Machine policy by 1 to match the new SYSVOL policy number
-    $currentVersion = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object -ExpandProperty versionNumber)
-    $gray+" Current GPO AD versionNumber = $currentVersion"
-    $gray+" Incrementing version by 1"
-    $newVersionValue = $currentVersion+1
-    Set-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber -Value $newVersionValue
-    $currentVersion = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name versionNumber | Select-Object -ExpandProperty versionNumber)
-    $gray+" GPO AD versionNumber = $currentVersion"
 
     # Display current gPCMachineExtensionNames
     if($noext -ne 1){
