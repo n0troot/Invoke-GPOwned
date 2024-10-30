@@ -147,6 +147,18 @@ Parameters:
         $dc = (Get-ADDomain).InfrastructureMaster
     }
 
+    $gpoPath = "CN=$GPOGUID,CN=Policies,CN=System,DC=yourdomain,DC=com"
+    $checkgpo = (Get-Acl -Path "AD:$gpoPath" 2>&1>$null).Access |
+    Where-Object {
+        $_.ActiveDirectoryRights -match "GenericWrite|WriteProperty|WriteDacl|WriteOwner|GenericAll" -and
+        ($_.IdentityReference -match "$env:USERNAME|Authenticated Users|Domain Users|Everyone")
+    }
+
+    if($null -eq $checkgpo){
+        $red+" GPO not found or you don't have permissions to modify it!"
+        return
+    }
+
     # Checking for gPCMachineExtensionNames for the means of backup and restoration after execution
     if(Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames -ErrorAction SilentlyContinue){
         $InitialExtensions = (Get-ItemProperty "AD:\CN=$GPOGUID,CN=Policies,CN=System,$domaindn" -Name gPCMachineExtensionNames | Select-Object -ExpandProperty gPCMachineExtensionNames);
