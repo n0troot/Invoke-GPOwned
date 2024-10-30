@@ -21,22 +21,26 @@ The only thing that the user needs is write privileges over the specific group p
 3. If downloaded - import module
 4. Run Invoke-GPOwned using the following flags:
 
-   |Flag|Alias|Description|
-   |-|-|-|
-   |-GPOGUID|-guid|Group Policy GUID|
-   |-Computer|-c|Target Computer|
-   |-ScheduledTasksXMLPath|-xml|Full path to the ScheduledTasks xml file|
-   |-LoadDLL|-dll|Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory|
-   |-DA|*|Adds the user to the domain admins group|
-   |-Local|*|Adds a chosen user to the local administrators group on the defined computer|
-   |-CMD|*|Execute a custom cmd command|
-   |-PowerShell|-ps|Execute a custom powershell command|
-   |-User|-u|Target user to elevate, **mandatory** for DA/Local technique|
-   |-Domain|-d|Target domain, current domain is used by default|
-   |-SecondTaskXMLPath|-stx|Using the the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers, **No need for -CMD or -PowerShell flags!**|
-   |SecondXMLCMD|*|Execute a CMD command in the second XML|
-   |SecondPowerShell|*|Execute a PowerShell command in the second XML|
-   |Log|*|Log the entire output of the tool to a text file|
+| Flag | Alias | Description |
+|------|-------|-------------|
+| -GPOGUID | -guid | Group Policy GUID |
+| -GPOName | -gpo | Group Policy Name (alternative to GUID) |
+| -Computer | -c | Target Computer |
+| -ScheduledTasksXMLPath | -xml | Full path to the ScheduledTasks xml file |
+| -LoadDLL | -dll | Load the Microsoft.ActiveDirectory.Management.dll from a custom path, if not supplied it will try to download it to the current directory |
+| -DA | | Adds the user to the domain admins group |
+| -Local | | Adds a chosen user to the local administrators group on the defined computer |
+| -CMD | | Execute a custom cmd command |
+| -PowerShell | -ps | Execute a custom powershell command |
+| -User | -u | Target user to elevate, mandatory for DA/Local technique |
+| -Domain | -d | Target domain, current domain is used by default |
+| -SecondTaskXMLPath | -stx | Using the wsadd.xml file, run commands as a domain admin on workstations that are not domain controllers, No need for -CMD or -PowerShell flags! |
+| -SecondXMLCMD | -scmd | Execute a CMD command in the second XML |
+| -SecondPowerShell | -sps | Execute a PowerShell command in the second XML |
+| -Author | -a | Specify a domain admin account to use (otherwise auto-detected) |
+| -Interval | -int | Custom interval in minutes to wait for GPO update (default is 5 minutes) |
+| -Help | -h | Display help message |
+| -Log | | Log the entire output of the tool to a text file |
 
  6. If you get an error at the end of execution that removing the scheduled task failed, don't forget to remove it manually
 
