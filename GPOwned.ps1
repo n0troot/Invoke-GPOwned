@@ -171,14 +171,14 @@ Parameters:
             $red+" Failed to find GPO with name: $GPOName"
             return
         }
-    $gpoPath = "CN=$GPOGUID,CN=Policies,CN=System,DC=yourdomain,DC=com"
-    $checkgpo = (Get-Acl -Path "AD:$gpoPath" 2>&1>$null).Access |
+    $gpoPath = "CN=$GPOGUID,CN=Policies,CN=System,$domaindn"
+    $checkgpo = (Get-Acl -Path "AD:$gpoPath").Access |
     Where-Object {
         $_.ActiveDirectoryRights -match "GenericWrite|WriteProperty|WriteDacl|WriteOwner|GenericAll" -and
         ($_.IdentityReference -match "$env:USERNAME|Authenticated Users|Domain Users|Everyone")
     }
 
-    if($null -eq $checkgpo){
+    if(!$checkgpo){
         $red+" You don't have permissions to modify this GPO!"
         return
     }
