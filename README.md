@@ -12,7 +12,7 @@ The only thing that the user needs is write privileges over the specific group p
 
 *****Escalating to local admin:*****
 
-* Group policy linked to a workstation which has a session of a local admin &rarr; **Local Flag**
+* Group policy linked to a workstation &rarr; **Local Flag**
 
 # How to Use
 
