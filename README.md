@@ -50,7 +50,7 @@ The only thing that the user needs is write privileges over the specific group p
 # MultiTasking Attack - SecondTask
 
 In the case of control over a GPO that is linked to the domain but not to the domain controllers, this attack would grant the attacker DA privileges by using a second scheduled task.
-The rationale behind it is that the GPO Immediate Task is always executed with NT Authority\SYSTEM privileges, which is sufficient for escalation to DA from a domain controllers yet not from a workstation.
+The rationale behind it is that the GPO Immediate Task is always executed with NT Authority\SYSTEM privileges, which is sufficient for escalation to DA from domain controllers yet not from a workstation.
 MultiTasking attack essentially runs an immediate task on a workstation, which executes a powershell Register-ScheduledTask command as admin, adding a second scheduled task that is pre-built to add the attacker's
 user to the domain admin group, by running in the context of the "highest available privileges" of the users group("S-1-5-32-545"), as a session of a domain admin is in place, the command would run in its context. 
 
