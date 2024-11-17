@@ -4,7 +4,10 @@ function Check-GPOWriteAndLink {
         [switch]$All,
         
         [Parameter(Mandatory=$false)]
-        [string]$GPO
+        [string]$GPO,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Full
     )
 
     $red = "$([char]0x1b)[101m[-]$([char]0x1b)[0m"
@@ -41,7 +44,8 @@ function Check-GPOWriteAndLink {
     function Check-SingleGPO {
         param (
             [string]$GPOIdentifier,
-            [switch]$CheckLinks
+            [switch]$CheckLinks,
+            [switch]$ShowComputers
         )
 
         $gpoPath = "CN=$GPOIdentifier,CN=Policies,CN=System,$domaindn"
@@ -85,6 +89,18 @@ function Check-GPOWriteAndLink {
                 Write-Host $green"GPO $gpoDisplayName ($gpoGUID) is linked to:"
                 foreach ($location in $linkedLocations) {
                     Write-Host "  - $location"
+                    if ($ShowComputers -and $location -like "OU:*") {
+                        $ouDN = $location.Substring(4).Trim()
+                        $computers = Get-ADComputer -Filter * -SearchBase $ouDN | Select-Object -ExpandProperty Name
+                        if ($computers) {
+                            Write-Host "    Computers in this OU:"
+                            foreach ($computer in $computers) {
+                                Write-Host "      $computer"
+                            }
+                        } else {
+                            Write-Host "    No computers found in this OU"
+                        }
+                    }
                 }
             } else {
                 Write-Host $gray"GPO $gpoDisplayName ($gpoGUID) is not linked to any locations (This might be incorrect, please verify manually)"
@@ -108,7 +124,7 @@ function Check-GPOWriteAndLink {
         }
         Write-Host "`nChecking linked locations for writable GPOs..."
         foreach ($writableGPO in $writableGPOs) {
-            Check-SingleGPO -GPOIdentifier $writableGPO -CheckLinks | Out-Null
+            Check-SingleGPO -GPOIdentifier $writableGPO -CheckLinks -ShowComputers:$Full | Out-Null
         }
     } elseif ($GPO) {
         $gpoIdentifier = if ($GPO -match '^{?[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}}?$') {
@@ -128,7 +144,7 @@ function Check-GPOWriteAndLink {
             }
         }
 
-        $isWritable = Check-SingleGPO -GPOIdentifier $gpoIdentifier -CheckLinks
+        $isWritable = Check-SingleGPO -GPOIdentifier $gpoIdentifier -CheckLinks -ShowComputers:$Full
         if ($isWritable) {
             Write-Host $green"GPO $GPO is writable"
         } else {
