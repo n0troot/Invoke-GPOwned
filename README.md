@@ -12,13 +12,13 @@ The only thing that the user needs is write privileges over the specific group p
 
 *****Escalating to local admin:*****
 
-* Group policy linked to a workstation which has a session of a local admin &rarr; **Local Flag**
+* Group policy linked to a workstation &rarr; **Local Flag**
 
 # How to Use
 
-1. Download the ScheduledTasks.xml file
-2. Download/IEX GPOwned.ps1
-3. If downloaded - import module
+1. Download the entire repo
+2. Import-Module .\Microsoft.ActiveDirectory.Management.dll
+3. *If Import-Module failed, Open the DLL's properties and "Unblock" the file 
 4. Run Invoke-GPOwned using the following flags:
 
 | Flag | Alias | Description |
@@ -47,6 +47,12 @@ The only thing that the user needs is write privileges over the specific group p
  7. When using the second XML technique, note that it may take up to 24 hours for the scheduled task to remove itself, best practice would be to unregister the scheduled task manually to assure proper clean-up.  
 
 
+# MultiTasking Attack - SecondTask
+
+In the case of control over a GPO that is linked to the domain but not to the domain controllers, this attack would grant the attacker DA privileges by using a second scheduled task.
+The rationale behind it is that the GPO Immediate Task is always executed with NT Authority\SYSTEM privileges, which is sufficient for escalation to DA from domain controllers yet not from a workstation.
+MultiTasking attack essentially runs an immediate task on a workstation, which executes a powershell Register-ScheduledTask command as admin, adding a second scheduled task that is pre-built to add the attacker's
+user to the domain admin group, by running in the context of the "highest available privileges" of the users group("S-1-5-32-545"), as a session of a domain admin is in place, the command would run in its context. 
 
 # TO ADD
 
