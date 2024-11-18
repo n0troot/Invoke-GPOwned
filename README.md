@@ -14,7 +14,7 @@ The only thing that the user needs is write privileges over the specific group p
 
 * Group policy linked to a workstation &rarr; **Local Flag**
 
-# How to Use
+# How to Use Invoke-GPOwned
 
 1. Download the entire repo
 2. Import-Module .\Microsoft.ActiveDirectory.Management.dll
@@ -54,6 +54,33 @@ The rationale behind it is that the GPO Immediate Task is always executed with N
 MultiTasking attack essentially runs an immediate task on a workstation, which executes a powershell Register-ScheduledTask command as admin, adding a second scheduled task that is pre-built to add the attacker's
 user to the domain admin group, by running in the context of the "highest available privileges" of the users group("S-1-5-32-545"), as a session of a domain admin is in place, the command would run in its context. 
 
+# How to Use Get-GPRecon
+
+This PowerShell function checks for writable Group Policy Objects (GPOs) in an Active Directory environment and can identify where these GPOs are linked. It's particularly useful for security assessments and identifying potential privilege escalation paths through GPO modifications.
+
+| Flag | Mandatory | Description |
+|------|-----------|-------------|
+| -All | No | Checks all GPOs in the domain for write access |
+| -GPO | No | Checks a specific GPO (can be specified by name or GUID) |
+| -Full | No | Shows all computers in linked OUs when used with other parameters |
+
+## Usage Examples
+
+*****Check a specific GPO by name:*****
+Get-GPRecon -GPO "Default Domain Policy"
+
+*****Check a specific GPO by name and show computers in linked OUs:*****
+Get-GPRecon -GPO "Default Domain Policy" -Full
+
+*****Check a specific GPO by GUID:*****
+Get-GPRecon -GPO "{31B2F340-016D-11D2-945F-00C04FB984F9}"
+
+*****Check all GPOs in the domain:*****
+Get-GPRecon -All
+
+*****Check all GPOs and show computers in linked OUs:*****
+Get-GPRecon -All -Full
+
 # TO ADD
 
 1. ~~Second XML handling #> -User param to change in the XML, custom cmd/ps to go to that xml, verify deletion~~
@@ -61,3 +88,4 @@ user to the domain admin group, by running in the context of the "highest availa
 3. ~~GPO name to GUID, might be a terrible idea... but maybe...~~
 4. A better loading screen hopefully
 5. ~~Better output... probably colored, probably more informative~~
+6. Fix the interval parameter
