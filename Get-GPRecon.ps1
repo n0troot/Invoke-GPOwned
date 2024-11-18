@@ -1,4 +1,4 @@
-function Check-GPOWriteAndLink {
+function Get-GPRecon {
     param (
         [Parameter(Mandatory=$false)]
         [switch]$All,
@@ -9,7 +9,7 @@ function Check-GPOWriteAndLink {
         [Parameter(Mandatory=$false)]
         [switch]$Full
     )
-
+    Import-Module .\Microsoft.ActiveDirectory.Management.dll
     $red = "$([char]0x1b)[101m[-]$([char]0x1b)[0m"
     $green = "$([char]0x1b)[102m[+]$([char]0x1b)[0m"
     $gray = "$([char]0x1b)[100m[*]$([char]0x1b)[0m"
@@ -144,12 +144,14 @@ function Check-GPOWriteAndLink {
             }
         }
 
-        $isWritable = Check-SingleGPO -GPOIdentifier $gpoIdentifier -CheckLinks -ShowComputers:$Full
+        $isWritable = Check-SingleGPO -GPOIdentifier $gpoIdentifier
         if ($isWritable) {
             Write-Host $green"GPO $GPO is writable"
         } else {
             Write-Host $red"GPO $GPO is not writable"
         }
+        
+        Check-SingleGPO -GPOIdentifier $gpoIdentifier -CheckLinks -ShowComputers:$Full | Out-Null
     } else {
         Write-Host "Please specify either -All to check all GPOs or -GPO to check a specific GPO by GUID or name."
     }
