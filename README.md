@@ -67,19 +67,19 @@ This PowerShell function checks for writable Group Policy Objects (GPOs) in an A
 ## Usage Examples
 
 *****Check a specific GPO by name:*****
-Check-GPOWriteAndLink -GPO "Default Domain Policy"
+Get-GPRecon -GPO "Default Domain Policy"
 
 *****Check a specific GPO by name and show computers in linked OUs:*****
-Check-GPOWriteAndLink -GPO "Default Domain Policy" -Full
+Get-GPRecon -GPO "Default Domain Policy" -Full
 
 *****Check a specific GPO by GUID:*****
-Check-GPOWriteAndLink -GPO "{31B2F340-016D-11D2-945F-00C04FB984F9}"
+Get-GPRecon -GPO "{31B2F340-016D-11D2-945F-00C04FB984F9}"
 
 *****Check all GPOs in the domain:*****
-Check-GPOWriteAndLink -All
+Get-GPRecon -All
 
 *****Check all GPOs and show computers in linked OUs:*****
-Check-GPOWriteAndLink -All -Full
+Get-GPRecon -All -Full
 
 # TO ADD
 
