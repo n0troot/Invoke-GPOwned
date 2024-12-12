@@ -54,6 +54,15 @@ The rationale behind it is that the GPO Immediate Task is always executed with N
 MultiTasking attack essentially runs an immediate task on a workstation, which executes a powershell Register-ScheduledTask command as admin, adding a second scheduled task that is pre-built to add the attacker's
 user to the domain admin group, by running in the context of the "highest available privileges" of the users group("S-1-5-32-545"), as a session of a domain admin is in place, the command would run in its context. 
 
+
+
+
+
+Example(Using gpupdate to speed things up):
+
+![image](https://github.com/user-attachments/assets/4f4b99be-3a82-4926-a72f-18d2aec42fc7)
+
+
 # How to Use Get-GPRecon
 
 This PowerShell function checks for writable Group Policy Objects (GPOs) in an Active Directory environment and can identify where these GPOs are linked. It's particularly useful for security assessments and identifying potential privilege escalation paths through GPO modifications.
