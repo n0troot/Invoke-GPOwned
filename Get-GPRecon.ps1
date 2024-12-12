@@ -9,6 +9,7 @@ function Get-GPRecon {
         [Parameter(Mandatory=$false)]
         [switch]$Full
     )
+    Get-ChildItem -Path . -Recurse | Unblock-File
     Import-Module .\Microsoft.ActiveDirectory.Management.dll
     $red = "$([char]0x1b)[101m[-]$([char]0x1b)[0m"
     $green = "$([char]0x1b)[102m[+]$([char]0x1b)[0m"
