@@ -60,7 +60,10 @@ user to the domain admin group, by running in the context of the "highest availa
 
 Example(Using gpupdate to speed things up):
 
-![image](https://github.com/user-attachments/assets/4f4b99be-3a82-4926-a72f-18d2aec42fc7)
+
+
+https://github.com/user-attachments/assets/f2cbe4d3-0fd7-4ce3-8cba-ebd496b5f121
+
 
 
 # How to Use Get-GPRecon
