@@ -121,6 +121,7 @@ Parameters:
     # Load the ActiveDirectory module from a custom path or download it if not provided
     if(!($LoadDLL)){
         Invoke-WebRequest https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
+        Get-ChildItem -Path . -Recurse | Unblock-File
         Import-Module .\Microsoft.ActiveDirectory.Management.dll
         $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
         if(($mod -contains "Microsoft.ActiveDirectory")){
@@ -130,6 +131,7 @@ Parameters:
             return
         }
     } elseif($LoadDLL) {
+        Get-ChildItem -Path . -Recurse | Unblock-File
         Import-Module $LoadDLL -ErrorAction Stop
         $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
         if(($mod -like "Microsoft.ActiveDirectory*")){
