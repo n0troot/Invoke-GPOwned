@@ -109,11 +109,8 @@ Get-GPRecon -All
 *****Check all GPOs and show computers in linked OUs:*****
 Get-GPRecon -All -Full
 
-# TO ADD
+# CHANGELOG
 
-1. ~~Second XML handling #> -User param to change in the XML, custom cmd/ps to go to that xml, verify deletion~~
-2. Better error handling #> GPT.INI could be loaded by a process, JUST CHECK THAT EVERY CASE IS HANDLED
-3. ~~GPO name to GUID, might be a terrible idea... but maybe...~~
-4. A better loading screen hopefully
-5. ~~Better output... probably colored, probably more informative~~
-6. Fix the interval parameter
+- The tool now checks the GPO status to see if computer policy is disabled and enables it automatically, special thanks to [@mattmcnabb](https://github.com/mattmcnabb) for the gist that made this possible!
+- Interval parameter is fixed
+- Auto ADModule loading bugs are fixed
