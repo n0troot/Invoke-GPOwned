@@ -154,6 +154,7 @@ Parameters:
     if($moduleExists -eq $false){
         Unblock-File .\GroupPolicy.psd1 2>&1>$null
         Unblock-File .\GroupPolicy.format.ps1xml 2>&1>$null
+        Unblock-File *.dll 2>&1>$null
         Import-Module .\GroupPolicy.psd1
     }
 
